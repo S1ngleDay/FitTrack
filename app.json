@@ -24,6 +24,17 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Разрешите доступ к фото, чтобы установить аватар профиля.",
+          "cameraPermission": "Разрешите доступ к камере, чтобы сделать фото профиля."
+        }
+      ]
+    ]
   }
 }
