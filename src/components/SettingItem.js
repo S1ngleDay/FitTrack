@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#1C1C1E', // Темно-серый фон
+    backgroundColor: colors.cardBg, // Темно-серый фон
     marginBottom: 1, // Тонкая линия между пунктами
   },
   left: {
@@ -68,12 +68,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: 'white',
+    color: colors.textPrimary,
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
   },
   valueText: {
-    color: '#8E8E93',
+    color: colors.textSecondary,
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
   }

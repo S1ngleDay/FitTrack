@@ -223,33 +223,33 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20, paddingHorizontal: 20 },
-  headerTitle: { color: 'white', fontSize: 20, fontFamily: 'Inter_600SemiBold' },
+  headerTitle: { color: colors.textPrimary, fontSize: 20, fontFamily: 'Inter_600SemiBold' },
   backButton: { padding: 8, backgroundColor: '#2C2C2E', borderRadius: 12 },
   
   heroSection: { alignItems: 'center', marginBottom: 30, paddingHorizontal: 20 },
   timeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  heroValue: { color: 'white', fontSize: 64, fontFamily: 'Inter_700Bold', lineHeight: 70 },
-  heroUnit: { color: '#8E8E93', fontSize: 24, fontFamily: 'Inter_600SemiBold', marginRight: 10 },
-  heroSubtitle: { color: '#8E8E93', fontSize: 16, marginBottom: 15, fontFamily: 'Inter_500Medium' },
+  heroValue: { color: colors.textPrimary, fontSize: 64, fontFamily: 'Inter_700Bold', lineHeight: 70 },
+  heroUnit: { color: colors.textSecondary, fontSize: 24, fontFamily: 'Inter_600SemiBold', marginRight: 10 },
+  heroSubtitle: { color: colors.textSecondary, fontSize: 16, marginBottom: 15, fontFamily: 'Inter_500Medium' },
   
   streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 159, 10, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6, borderWidth: 1, borderColor: 'rgba(255, 159, 10, 0.3)' },
   streakText: { color: '#FF9F0A', fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   
-  card: { backgroundColor: '#1C1C1E', borderRadius: 24, padding: 20, marginHorizontal: 20, marginBottom: 20 },
+  card: { backgroundColor: colors.cardBg, borderRadius: 24, padding: 20, marginHorizontal: 20, marginBottom: 20 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 },
-  cardTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: 'white' },
+  cardTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: colors.textPrimary },
   
   heatmapGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-start' },
   heatmapBox: { width: Math.floor((width - 80 - 36) / 7), height: 30, borderRadius: 6 },
-  heatmapFooter: { marginTop: 10, color: '#8E8E93', fontSize: 12, textAlign: 'right' },
+  heatmapFooter: { marginTop: 10, color: colors.textSecondary, fontSize: 12, textAlign: 'right' },
   
   chartWrapper: { marginBottom: 20 },
   
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 20, paddingHorizontal: 20 },
-  statCard: { flex: 1, backgroundColor: '#1C1C1E', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statCard: { flex: 1, backgroundColor: colors.cardBg, borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  statValue: { fontSize: 16, fontFamily: 'Inter_700Bold', color: 'white' },
-  statLabel: { fontSize: 12, color: '#8E8E93', fontFamily: 'Inter_500Medium' },
+  statValue: { fontSize: 16, fontFamily: 'Inter_700Bold', color: colors.textPrimary },
+  statLabel: { fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_500Medium' },
   
   funFactCard: { borderRadius: 24, padding: 20, marginHorizontal: 20 },
   funFactContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },

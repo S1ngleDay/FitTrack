@@ -16,15 +16,15 @@ export default function BottomTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false, // Скрываем верхнюю панель (заголовок экрана)
+        headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1C1C1E', // Темно-серый фон меню
-          borderTopWidth: 0,          // Убираем серую полоску сверху
-          height: 85,                 // Высота меню (для удобства нажатия)
+          backgroundColor: '#1C1C1E',
+          borderTopWidth: 0,
+          height: 85,
           paddingTop: 10,
         },
-        tabBarActiveTintColor: colors.primary, // Цвет активной иконки (неоновый)
-        tabBarInactiveTintColor: '#8E8E93',    // Цвет неактивной (серый)
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: '#8E8E93',
         tabBarLabelStyle: {
           fontSize: 12,
           fontFamily: 'Inter_600SemiBold',

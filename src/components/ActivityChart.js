@@ -41,14 +41,14 @@ export default function ActivityChart() {
 
 const styles = StyleSheet.create({
   chartContainer: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: colors.cardBg,
     padding: 20,
     marginHorizontal: 20,
     borderRadius: 20,
     marginBottom: 20,
   },
   chartTitle: {
-    color: 'white',
+    color: colors.textPrimary,
     fontSize: 18,
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 20,

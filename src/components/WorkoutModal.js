@@ -346,20 +346,20 @@ export default function WorkoutModal({ visible, onClose, initialMode = 'list' })
 const styles = StyleSheet.create({
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)' },
   modalWrapper: { flex: 1, justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#1C1C1E', borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '90%', paddingBottom: 20 },
+  modalContent: { backgroundColor: colors.cardBg, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '90%', paddingBottom: 20 },
   
   swipeHeader: { paddingTop: 12, paddingBottom: 10, paddingHorizontal: 20, alignItems: 'center' },
   dragHandle: { width: 40, height: 5, backgroundColor: '#3A3A3C', borderRadius: 3, marginBottom: 15 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' },
-  title: { color: 'white', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  title: { color: colors.textPrimary, fontSize: 22, fontFamily: 'Inter_700Bold' },
   closeBtn: { padding: 4, backgroundColor: '#2C2C2E', borderRadius: 12 },
   
   // Menu Styles
   segmentControl: { flexDirection: 'row', backgroundColor: '#2C2C2E', borderRadius: 12, padding: 4, marginBottom: 20 },
   segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
   activeSegment: { backgroundColor: '#3A3A3C' },
-  segmentText: { color: '#8E8E93', fontFamily: 'Inter_600SemiBold' },
-  activeSegmentText: { color: 'white' },
+  segmentText: { color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
+  activeSegmentText: { color: colors.textPrimary },
   gridContainer: { paddingBottom: 20 },
   
   heroButton: { marginBottom: 15, borderRadius: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5 },
@@ -371,27 +371,27 @@ const styles = StyleSheet.create({
   tilesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
   tileCard: { width: '48%', backgroundColor: '#2C2C2E', borderRadius: 16, padding: 16, minHeight: 110, justifyContent: 'space-between', marginBottom: 12 },
   tileIconCircle: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  tileTitle: { color: 'white', fontSize: 15, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
-  tileSub: { color: '#8E8E93', fontSize: 12, fontFamily: 'Inter_500Medium' },
+  tileTitle: { color: colors.textPrimary, fontSize: 15, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
+  tileSub: { color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_500Medium' },
   playMini: { position: 'absolute', right: 10, bottom: 10 },
   
   footer: { paddingTop: 10, borderTopWidth: 1, borderTopColor: '#2C2C2E', marginTop: 'auto', marginBottom: 20 },
   manualButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10 },
-  manualButtonText: { color: '#8E8E93', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  manualButtonText: { color: colors.textSecondary, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
 
   // Setup Styles
   setupHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginTop: 10 },
   backButton: { flexDirection: 'row', alignItems: 'center', padding: 8 },
-  backText: { color: '#8E8E93', fontSize: 16, fontFamily: 'Inter_500Medium', marginLeft: 4 },
+  backText: { color: colors.textSecondary, fontSize: 16, fontFamily: 'Inter_500Medium', marginLeft: 4 },
   
   iconBigCircle: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  setupTitle: { color: 'white', fontSize: 24, fontFamily: 'Inter_700Bold', marginBottom: 8 },
-  setupSub: { color: '#8E8E93', fontSize: 16, fontFamily: 'Inter_500Medium', marginBottom: 20 },
+  setupTitle: { color: colors.textPrimary, fontSize: 24, fontFamily: 'Inter_700Bold', marginBottom: 8 },
+  setupSub: { color: colors.textSecondary, fontSize: 16, fontFamily: 'Inter_500Medium', marginBottom: 20 },
   
-  goalLabel: { color: '#8E8E93', fontSize: 14, fontFamily: 'Inter_600SemiBold', marginBottom: 10, textTransform: 'uppercase' },
+  goalLabel: { color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_600SemiBold', marginBottom: 10, textTransform: 'uppercase' },
   inputWrapper: { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1, borderBottomColor: '#3A3A3C', paddingBottom: 10 },
-  goalInput: { flex: 1, fontSize: 40, fontFamily: 'Inter_700Bold', color: 'white' },
-  unitText: { fontSize: 20, fontFamily: 'Inter_600SemiBold', color: '#8E8E93', marginBottom: 8, marginLeft: 10 },
+  goalInput: { flex: 1, fontSize: 40, fontFamily: 'Inter_700Bold', color: colors.textPrimary },
+  unitText: { fontSize: 20, fontFamily: 'Inter_600SemiBold', color: colors.textSecondary, marginBottom: 8, marginLeft: 10 },
   
   bigStartButton: { 
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', 

@@ -151,37 +151,37 @@ export default function WorkoutSummaryScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'black' },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
   
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, marginBottom: 30 },
-  headerTitle: { color: '#8E8E93', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  headerTitle: { color: colors.textSecondary, fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   closeBtn: { padding: 8, backgroundColor: 'rgba(255, 59, 48, 0.1)', borderRadius: 12 },
 
   titleContainer: { alignItems: 'center', marginBottom: 40 },
   congratsText: { color: colors.primary, fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 5, textTransform: 'uppercase' },
-  workoutType: { color: 'white', fontSize: 28, fontFamily: 'Inter_800ExtraBold' },
+  workoutType: { color: colors.textPrimary, fontSize: 28, fontFamily: 'Inter_800ExtraBold' },
 
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginBottom: 40 },
   statCard: { 
      width: (width - 52) / 2, 
-     backgroundColor: '#1C1C1E', borderRadius: 20, padding: 20, 
+     backgroundColor: colors.cardBg, borderRadius: 20, padding: 20, 
      alignItems: 'center', justifyContent: 'center' 
   },
-  statValue: { color: 'white', fontSize: 24, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  statLabel: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_500Medium' },
+  statValue: { color: colors.textPrimary, fontSize: 24, fontFamily: 'Inter_700Bold', marginBottom: 4 },
+  statLabel: { color: colors.textSecondary, fontSize: 13, fontFamily: 'Inter_500Medium' },
 
   commentSection: { width: '100%' },
-  sectionTitle: { color: 'white', fontSize: 18, fontFamily: 'Inter_600SemiBold', marginBottom: 15 },
+  sectionTitle: { color: colors.textPrimary, fontSize: 18, fontFamily: 'Inter_600SemiBold', marginBottom: 15 },
   commentInput: { 
-    backgroundColor: '#1C1C1E', borderRadius: 16, padding: 16, 
-    color: 'white', fontSize: 16, fontFamily: 'Inter_400Regular',
+    backgroundColor: colors.cardBg, borderRadius: 16, padding: 16, 
+    color: colors.textPrimary, fontSize: 16, fontFamily: 'Inter_400Regular',
     minHeight: 120, borderWidth: 1, borderColor: '#2C2C2E'
   },
 
   footer: { 
-    padding: 20, borderTopWidth: 1, borderTopColor: '#1C1C1E', 
-    backgroundColor: 'black'
+    padding: 20, borderTopWidth: 1, borderTopColor: colors.cardBg, 
+    backgroundColor: colors.background
   },
   saveButton: { 
     backgroundColor: colors.primary, borderRadius: 20, paddingVertical: 18, 

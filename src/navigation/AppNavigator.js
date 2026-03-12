@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import BottomTabNavigator from './BottomTabNavigator';
 import ActiveRunScreen from '../screens/ActiveRunScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
+import SecurityScreen from '../screens/SecurityScreen';
 
 // ✅ ИМПОРТИРУЙТЕ ВАШИ ЭКРАНЫ ДЕТАЛЕЙ
 import TimeDetailsScreen from '../screens/TimeDetailsScreen';       // Проверьте путь!
@@ -60,6 +61,12 @@ export default function AppNavigator() {
         name="StepsDetails" 
         component={StepsDetailsScreen} 
         options={{ headerShown: true, title: 'Шаги', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
+      />
+
+      <Stack.Screen 
+        name="SecurityScreen" 
+        component={SecurityScreen} 
+        options={{ headerShown: false }}
       />
 
     </Stack.Navigator>

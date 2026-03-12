@@ -190,7 +190,7 @@ export default function ActiveRunScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'black' },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, paddingHorizontal: 20, justifyContent: 'space-between', paddingBottom: 40 },
   
   header: {
@@ -200,25 +200,25 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { color: 'white', fontSize: 18, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase' },
+  headerTitle: { color: colors.textPrimary, fontSize: 18, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase' },
 
   goalCard: {
     backgroundColor: 'rgba(255,255,255,0.1)', padding: 15, borderRadius: 16, alignItems: 'center', marginTop: 20
   },
   goalTitle: { color: colors.primary, fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  goalSubtitle: { color: '#8E8E93', fontSize: 14, fontFamily: 'Inter_500Medium' },
+  goalSubtitle: { color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_500Medium' },
 
   timerContainer: { alignItems: 'center', justifyContent: 'center', flex: 1 },
-  timerValue: { color: 'white', fontSize: 80, fontFamily: 'Inter_700Bold', fontVariant: ['tabular-nums'] },
-  timerLabel: { color: '#8E8E93', fontSize: 14, fontFamily: 'Inter_600SemiBold', marginTop: -10, letterSpacing: 2 },
+  timerValue: { color: colors.textPrimary, fontSize: 80, fontFamily: 'Inter_700Bold', fontVariant: ['tabular-nums'] },
+  timerLabel: { color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_600SemiBold', marginTop: -10, letterSpacing: 2 },
 
   metricsRow: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#1C1C1E', borderRadius: 24, padding: 25, marginBottom: 40
+    backgroundColor: colors.cardBg, borderRadius: 24, padding: 25, marginBottom: 40
   },
   metricItem: { alignItems: 'center', flex: 1 },
-  metricValue: { color: 'white', fontSize: 24, fontFamily: 'Inter_700Bold' },
-  metricLabel: { color: '#8E8E93', fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
+  metricValue: { color: colors.textPrimary, fontSize: 24, fontFamily: 'Inter_700Bold' },
+  metricLabel: { color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
   divider: { width: 1, height: 40, backgroundColor: '#3A3A3C' },
 
   controls: { flexDirection: 'row', justifyContent: 'center', gap: 30, alignItems: 'center' },

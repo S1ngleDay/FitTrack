@@ -20,21 +20,23 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.FitTrack"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font",
-      "@react-native-community/datetimepicker",
       [
-        "expo-image-picker",
+        "expo-sensors",
         {
-          "photosPermission": "Разрешите доступ к фото, чтобы установить аватар профиля.",
-          "cameraPermission": "Разрешите доступ к камере, чтобы сделать фото профиля."
+          "motionAndShakePermission": "Измеряем вашу активность для подсчета шагов"
         }
       ]
+    ],
+    "permissions": [
+      "android.permission.ACTIVITY_RECOGNITION",
+      "android.permission.ACCESS_FINE_LOCATION"
     ]
   }
 }

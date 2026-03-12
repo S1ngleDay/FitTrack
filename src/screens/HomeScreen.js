@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; // устаревший SafeAreaView заменили
 import { CircleUser, Play, Footprints, Flame, Clock, Dumbbell, Wind, Bike } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
@@ -8,6 +9,7 @@ import StatsCard from '../components/StatsCard';
 import colors from '../constants/colors';
 import { useWorkoutStore } from '../store/workoutStore';
 import { getDailyStats, calculateProgress, getMetricValue } from '../utils/statsCalculator';
+import { getStepsForToday, watchStepCount, requestStepPermissions } from '../utils/stepCounter';
 
 // Конфиг иконок и подзаголовков для каждого типа тренировки
 const TYPE_CONFIG = {
@@ -41,6 +43,9 @@ const FALLBACK_CONFIG = {
 
 export default function HomeScreen({ navigation }) {
   const workouts = useWorkoutStore(s => s.workouts);
+  const [liveSteps, setLiveSteps] = useState(0);
+  const [stepsLoaded, setStepsLoaded] = useState(false);
+  
   const dailyStats = useMemo(() => getDailyStats(workouts), [workouts]);
 
   const today = new Date();
@@ -49,17 +54,71 @@ export default function HomeScreen({ navigation }) {
 
   const goals = { steps: 11000, distance: 12.3, calories: 600, duration: 80 };
 
+  // ✅ ИНИЦИАЛИЗАЦИЯ ДАТЧИКА ШАГОВ
+  useEffect(() => {
+    let subscription = null;
+
+    const initStepCounter = async () => {
+      try {
+        const hasPermission = await requestStepPermissions();
+        if (!hasPermission) {
+          setStepsLoaded(true);
+          return;
+        }
+
+        // initial value (на Android будет сохранённое число)
+        const stepsToday = await getStepsForToday();
+        setLiveSteps(stepsToday);
+        setStepsLoaded(true);
+
+        subscription = await watchStepCount((steps) => {
+          setLiveSteps(steps);
+        });
+      } catch (error) {
+        console.error('Ошибка инициализации шагов:', error);
+        setStepsLoaded(true);
+      }
+    };
+
+    initStepCounter();
+
+    return () => {
+      if (subscription && subscription.remove) {
+        subscription.remove();
+      }
+    };
+  }, []);
+
+  // ✅ ОБНОВЛЯЕМ ШАГИ ПРИ ФОКУСЕ НА ЭКРАН
+  useFocusEffect(
+    React.useCallback(() => {
+      // на Android заново читать не нужно – подписка уже ведёт подсчёт,
+      // но можно обновить из хранилища на всякий случай
+      const updateSteps = async () => {
+        try {
+          const stepsToday = await getStepsForToday();
+          setLiveSteps(stepsToday);
+        } catch (error) {
+          console.error('Ошибка при обновлении шагов:', error);
+        }
+      };
+      updateSteps();
+    }, [])
+  );
+
   const formatDuration = (m) => {
     if (!m) return '0м';
     if (m < 60) return `${m}м`;
     return `${Math.floor(m / 60)}ч ${m % 60}м`;
   };
 
+  // ✅ ИСПОЛЬЗУЕМ РЕАЛЬНЫЕ ШАГИ ИЗ ДАТЧИКА, ЕСЛИ ЗАГРУЖЕНЫ
+  const displaySteps = stepsLoaded && liveSteps > 0 ? liveSteps : dailyStats.steps;
+
   // ✅ ВЫЧИСЛЯЕМ ПОПУЛЯРНЫЕ ПРОГРАММЫ ИЗ ИСТОРИИ
   const topPrograms = useMemo(() => {
     if (!workouts || workouts.length === 0) return [];
 
-    // Группируем по типу и считаем частоту + накапливаем метрики
     const typeMap = {};
 
     workouts.forEach(w => {
@@ -80,7 +139,6 @@ export default function HomeScreen({ navigation }) {
 
       typeMap[type].count += 1;
 
-      // Берём числа из корня объекта, если есть, иначе — из metrics
       typeMap[type].totalCalories +=
         (typeof w.calories === 'number' ? w.calories : 0) ||
         getMetricValue(w.metrics, '🔥') ||
@@ -102,7 +160,6 @@ export default function HomeScreen({ navigation }) {
         getMetricValue(w.metrics, 'шагов');
     });
 
-    // Сортируем по частоте (самые частые — первые), берём топ-4
     return Object.values(typeMap)
       .sort((a, b) => b.count - a.count)
       .slice(0, 4)
@@ -126,8 +183,82 @@ export default function HomeScreen({ navigation }) {
     });
   };
 
+  const SECURITY_SETTINGS = [
+    {
+      id: 'biometric',
+      title: 'Биометрия',
+      subtitle: 'Face ID / Отпечаток',
+      type: 'toggle',
+      icon: 'Lock',
+      description: 'Защита приложения биометрией'
+    },
+    {
+      id: 'pin',
+      title: 'PIN-код',
+      subtitle: '4-6 символов',
+      type: 'input',
+      icon: 'Lock',
+      description: 'Дополнительная защита приложения'
+    },
+    {
+      id: 'sessionTimeout',
+      title: 'Время сеанса',
+      subtitle: '5 мин',
+      type: 'select',
+      icon: 'Clock',
+      options: ['1 мин', '5 мин', '15 мин', 'Никогда'],
+      description: 'Автоблокировка приложения при неактивности'
+    },
+    {
+      id: 'dataEncryption',
+      title: 'Шифрование данных',
+      subtitle: 'Включено',
+      type: 'toggle',
+      icon: 'Shield',
+      description: 'Локальное шифрование хранимых данных'
+    },
+    {
+      id: 'permissionsManage',
+      title: 'Разрешения',
+      type: 'button',
+      icon: 'Settings',
+      description: 'GPS, Датчики, Камера, Контакты'
+    },
+    {
+      id: 'dataPrivacy',
+      title: 'Конфиденциальность',
+      subtitle: 'Пользовательское',
+      type: 'button',
+      icon: 'Eye',
+      description: 'Кто видит ваши тренировки и данные'
+    },
+    {
+      id: 'deleteData',
+      title: 'Удалить все данные',
+      subtitle: 'Необратимо',
+      type: 'button',
+      icon: 'Trash2',
+      color: '#FF453A',
+      description: 'Удалить все тренировки и настройки'
+    },
+    {
+      id: 'activityLog',
+      title: 'История входов',
+      type: 'button',
+      icon: 'History',
+      description: 'Дата и время последних входов'
+    },
+    {
+      id: 'changePassword',
+      title: 'Изменить пароль',
+      type: 'button',
+      icon: 'Key',
+      description: 'Для облачной синхронизации'
+    }
+  ];
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* HEADER */}
@@ -146,9 +277,9 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.statsGrid}>
           <StatsCard
             title="Шаги"
-            value={dailyStats.steps.toLocaleString('ru-RU')}
+            value={displaySteps.toLocaleString('ru-RU')}
             color={colors.chartSteps || '#0A84FF'}
-            progress={calculateProgress(dailyStats.steps, goals.steps)}
+            progress={calculateProgress(displaySteps, goals.steps)}
             onPress={() => navigation.navigate('StepsDetails')}
           />
           <StatsCard
@@ -181,7 +312,6 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.actionSection}>
           <Text style={styles.sectionTitle}>Начать тренировку</Text>
 
-          {/* Quick Start */}
           <TouchableOpacity
             activeOpacity={0.8}
             style={styles.quickStartBtn}
@@ -196,13 +326,11 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.quickStartSub}>Свободный режим</Text>
           </TouchableOpacity>
 
-          {/* ✅ ПОПУЛЯРНЫЕ ПРОГРАММЫ — динамические */}
           <Text style={styles.subHeader}>
             Популярные программы
           </Text>
 
           {topPrograms.length === 0 ? (
-            // Если нет истории — показываем заглушку
             <View style={styles.emptyPrograms}>
               <Text style={styles.emptyProgramsText}>
                 Здесь появятся ваши любимые тренировки после нескольких занятий 💪
@@ -226,9 +354,7 @@ export default function HomeScreen({ navigation }) {
                     activeOpacity={0.8}
                     onPress={() => startProgram(program.type, program.type, subtitle)}
                   >
-                    {/* Цветной фон */}
                     <View style={[styles.cardBg, { backgroundColor: program.typeColor }]}>
-                      {/* Большая декоративная иконка */}
                       <Icon
                         size={90}
                         color="rgba(255,255,255,0.2)"
@@ -236,9 +362,7 @@ export default function HomeScreen({ navigation }) {
                       />
                     </View>
 
-                    {/* Контент */}
                     <View style={styles.cardContent}>
-                      {/* Бейдж с числом тренировок */}
                       <View style={styles.countBadge}>
                         <Text style={styles.countBadgeText}>{program.count}×</Text>
                       </View>
@@ -266,18 +390,18 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 15, marginBottom: 25,
   },
   date: {
-    color: colors.textSecondary || '#8E8E93', fontSize: 14,
+    color: colors.textSecondary, fontSize: 14,
     fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', marginBottom: 4,
   },
-  greeting: { color: 'white', fontSize: 30, fontFamily: 'Inter_700Bold' },
+  greeting: { color: colors.textPrimary, fontSize: 30, fontFamily: 'Inter_700Bold' },
   avatarContainer: {
-    backgroundColor: '#1C1C1E', padding: 8, borderRadius: 20,
+    backgroundColor: colors.cardBg, padding: 8, borderRadius: 20,
     borderWidth: 1, borderColor: '#2C2C2E',
   },
-  sectionTitle: { color: 'white', fontSize: 20, fontFamily: 'Inter_600SemiBold', marginBottom: 15 },
+  sectionTitle: { color: colors.textPrimary, fontSize: 20, fontFamily: 'Inter_600SemiBold', marginBottom: 15 },
   subHeader: {
     fontSize: 16, marginTop: 25, marginBottom: 15,
-    color: '#8E8E93', fontFamily: 'Inter_500Medium',
+    color: colors.textSecondary, fontFamily: 'Inter_500Medium',
   },
   statsGrid: {
     flexDirection: 'row', flexWrap: 'wrap',
@@ -286,8 +410,8 @@ const styles = StyleSheet.create({
   actionSection: { marginBottom: 10 },
   quickStartBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#32d74b', padding: 18, borderRadius: 20,
-    shadowColor: '#32d74b', shadowOffset: { width: 0, height: 4 },
+    backgroundColor: colors.primary, padding: 18, borderRadius: 20,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25, shadowRadius: 10, elevation: 5,
   },
   quickStartContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -303,7 +427,7 @@ const styles = StyleSheet.create({
   // ✅ Карточка программы (немного выше, чтобы вместить бейдж)
   programCard: {
     width: 145, height: 170, borderRadius: 24,
-    backgroundColor: '#1C1C1E', borderWidth: 1,
+    backgroundColor: colors.cardBg, borderWidth: 1,
     borderColor: '#2C2C2E', position: 'relative', overflow: 'hidden',
   },
   cardBg: { ...StyleSheet.absoluteFillObject },
@@ -314,16 +438,16 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', marginBottom: 4,
   },
   countBadgeText: { color: 'rgba(255,255,255,0.9)', fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-  cardTitle: { color: 'white', fontSize: 15, fontFamily: 'Inter_700Bold', marginBottom: 2 },
+  cardTitle: { color: colors.textPrimary, fontSize: 15, fontFamily: 'Inter_700Bold', marginBottom: 2 },
   cardSub: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontFamily: 'Inter_500Medium' },
 
   // Заглушка
   emptyPrograms: {
-    backgroundColor: '#1C1C1E', borderRadius: 20,
+    backgroundColor: colors.cardBg, borderRadius: 20,
     padding: 20, borderWidth: 1, borderColor: '#2C2C2E',
   },
   emptyProgramsText: {
-    color: '#8E8E93', fontSize: 14,
+    color: colors.textSecondary, fontSize: 14,
     fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22,
   },
 });

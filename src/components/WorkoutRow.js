@@ -61,7 +61,7 @@ export default function WorkoutRow({ date, type, typeColor, metrics, onPress }) 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#1C1C1E',
+    backgroundColor: colors.cardBg,
     borderRadius: 20, // Больше скругления
     padding: 16,
     //marginBottom: 12,
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4
   },
   date: {
-    color: '#8E8E93',
+    color: colors.textSecondary,
     fontSize: 13,
     fontFamily: 'Inter_500Medium',
   },
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end', // Выравнивание по правому краю
   },
   metricValue: {
-    color: 'white',
+    color: colors.textPrimary,
     fontSize: 16,
     fontFamily: 'Inter_700Bold',
   },

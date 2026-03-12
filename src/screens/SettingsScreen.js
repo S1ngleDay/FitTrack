@@ -17,7 +17,7 @@ import { useUserStore } from '../store/userStore';
 import { useWorkoutStore } from '../store/workoutStore';
 import { getMetricValue } from '../utils/statsCalculator';
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }) {
   const { user, settings, toggleSetting, updateUser } = useUserStore();
   const workouts = useWorkoutStore(s => s.workouts);
 
@@ -63,6 +63,33 @@ export default function SettingsScreen() {
     // Пример интеграции выбора фото (нужен expo-image-picker)
     // let result = await ImagePicker.launchImageLibraryAsync({ ... });
     Alert.alert('Функция в разработке', 'Скоро вы сможете загрузить свое фото!');
+  };
+
+  // --- БЕЗОПАСНОСТЬ ---
+  const handleBiometric = () => {
+    Alert.alert('Биометрия', 'Face ID / Touch ID будут использоваться для входа');
+  };
+
+  const handleSecuritySettings = () => {
+    navigation.navigate('SecurityScreen');
+  };
+
+  const handleDeleteData = () => {
+    Alert.alert(
+      'Удалить все данные',
+      'Это действие необратимо. Все тренировки и данные будут удалены.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { 
+          text: 'Удалить', 
+          onPress: () => {
+            // логика удаления данных
+            Alert.alert('Успешно', 'Все данные удалены');
+          },
+          style: 'destructive'
+        }
+      ]
+    );
   };
 
   return (
@@ -148,7 +175,10 @@ export default function SettingsScreen() {
                 icon={User} title="Личные данные" color="#007AFF" hasChevron 
                 onPress={() => setEditVisible(true)}
              />
-             <SettingItem icon={Shield} title="Безопасность" color="#32d74b" hasChevron />
+             <SettingItem 
+                icon={Shield} title="Безопасность" color="#32d74b" hasChevron
+                onPress={handleSecuritySettings}
+             />
           </SettingsGroup>
 
           <SettingsGroup title="ПРИЛОЖЕНИЕ">
@@ -265,28 +295,28 @@ const SettingsGroup = ({ title, children }) => (
 );
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'black' },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   
-  profileHeader: { alignItems: 'center', paddingTop: 20, paddingBottom: 30, backgroundColor: 'black' },
+  profileHeader: { alignItems: 'center', paddingTop: 20, paddingBottom: 30, backgroundColor: colors.background },
   avatarContainer: { position: 'relative', marginBottom: 15 },
-  avatarPlaceholder: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#1C1C1E', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
+  avatarPlaceholder: { width: 90, height: 90, borderRadius: 45, backgroundColor: colors.cardBg, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
   avatarImage: { width: 90, height: 90, borderRadius: 45 },
-  cameraBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#007AFF', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'black' },
+  cameraBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#007AFF', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.background },
   
   nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  profileName: { fontSize: 22, fontFamily: 'Inter_700Bold', color: 'white' },
-  profileEmail: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#8E8E93', marginBottom: 8 },
+  profileName: { fontSize: 22, fontFamily: 'Inter_700Bold', color: colors.textPrimary },
+  profileEmail: { fontSize: 13, fontFamily: 'Inter_500Medium', color: colors.textSecondary, marginBottom: 8 },
   
-  physicalTag: { backgroundColor: '#1C1C1E', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 20 },
+  physicalTag: { backgroundColor: colors.cardBg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 20 },
   physicalText: { color: colors.primary, fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   
   miniStatsContainer: { 
       flexDirection: 'row', justifyContent: 'space-around', width: '90%', 
-      backgroundColor: '#1C1C1E', borderRadius: 16, paddingVertical: 15 
+      backgroundColor: colors.cardBg, borderRadius: 16, paddingVertical: 15 
   },
   miniStatItem: { alignItems: 'center', flex: 1 },
-  miniStatValue: { fontSize: 16, fontFamily: 'Inter_700Bold', color: 'white', marginBottom: 2 },
-  miniStatLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
+  miniStatValue: { fontSize: 16, fontFamily: 'Inter_700Bold', color: colors.textPrimary, marginBottom: 2 },
+  miniStatLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', color: colors.textSecondary },
   dividerVertical: { width: 1, height: 30, backgroundColor: '#2C2C2E' },
 
   contentContainer: { paddingHorizontal: 20, paddingTop: 10 },
@@ -296,13 +326,13 @@ const styles = StyleSheet.create({
   proContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   proIconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   proTitle: { fontSize: 16, fontFamily: 'Inter_800ExtraBold' },
-  proSubtitle: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
+  proSubtitle: { fontSize: 12, fontFamily: 'Inter_500Medium', color: colors.textSecondary },
   proButton: { backgroundColor: 'rgba(255, 214, 10, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   proButtonText: { color: '#FFD60A', fontSize: 12, fontFamily: 'Inter_700Bold' },
 
   settingsGroup: { marginBottom: 25 },
-  groupTitle: { color: '#8E8E93', fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 8, marginLeft: 12, textTransform: 'uppercase' },
-  groupContainer: { backgroundColor: '#1C1C1E', borderRadius: 16, overflow: 'hidden' },
+  groupTitle: { color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 8, marginLeft: 12, textTransform: 'uppercase' },
+  groupContainer: { backgroundColor: colors.cardBg, borderRadius: 16, overflow: 'hidden' },
   
   versionText: { textAlign: 'center', color: '#3A3A3C', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 10, marginBottom: 20 },
 
@@ -310,23 +340,23 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1 },
   modalContainer: { 
-      backgroundColor: '#1C1C1E', 
+      backgroundColor: colors.cardBg, 
       borderTopLeftRadius: 24, borderTopRightRadius: 24, 
       paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10,
       borderWidth: 1, borderColor: '#2C2C2E'
   },
   dragIndicator: { width: 40, height: 4, backgroundColor: '#3A3A3C', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { color: 'white', fontSize: 18, fontFamily: 'Inter_700Bold' },
+  modalTitle: { color: colors.textPrimary, fontSize: 18, fontFamily: 'Inter_700Bold' },
   closeBtn: { padding: 5, backgroundColor: '#2C2C2E', borderRadius: 15 },
   
   modalBody: { paddingBottom: 10 },
   
   inputGroup: { marginBottom: 15 },
-  inputLabel: { color: '#8E8E93', fontSize: 12, marginBottom: 8, marginLeft: 4, fontFamily: 'Inter_500Medium' },
+  inputLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 8, marginLeft: 4, fontFamily: 'Inter_500Medium' },
   input: { 
-      backgroundColor: '#000', borderRadius: 12, padding: 16, 
-      color: 'white', fontSize: 16, fontFamily: 'Inter_500Medium',
+      backgroundColor: colors.background, borderRadius: 12, padding: 16, 
+      color: colors.textPrimary, fontSize: 16, fontFamily: 'Inter_500Medium',
       borderWidth: 1, borderColor: '#2C2C2E'
   },
   rowInputs: { flexDirection: 'row', marginBottom: 25 },

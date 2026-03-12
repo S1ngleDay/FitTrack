@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Footprints, MapPin, Flame, Clock, ArrowUpRight } from 'lucide-react-native';
+import colors from '../constants/colors';
 
 // Хелпер для выбора иконки
 const getIcon = (title, color) => {
@@ -52,7 +53,7 @@ export default function StatsCard({ title, value, unit, color, onPress, progress
 const styles = StyleSheet.create({
   card: {
     width: '48%', // Чтобы влезало 2 в ряд с отступом
-    backgroundColor: '#1C1C1E',
+    backgroundColor: colors.cardBg,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
@@ -79,17 +80,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   value: {
-    color: 'white',
+    color: colors.textPrimary,
     fontSize: 22,
     fontFamily: 'Inter_700Bold',
   },
   unit: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: colors.textSecondary,
     fontFamily: 'Inter_600SemiBold',
   },
   title: {
-    color: '#8E8E93',
+    color: colors.textSecondary,
     fontSize: 13,
     fontFamily: 'Inter_500Medium',
     marginTop: 2,

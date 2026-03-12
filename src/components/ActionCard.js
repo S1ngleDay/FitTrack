@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    color: 'white',
+    color: colors.textPrimary,
     fontSize: 18,
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 4,

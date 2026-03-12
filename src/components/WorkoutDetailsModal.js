@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView, Image, Dimensions } from 'react-native';
 import { X, Calendar, Clock, Flame, Footprints, Activity, MapPin, Heart, AlignLeft, Share2, Timer, Dumbbell, Zap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import colors from '../constants/colors';
 const { width } = Dimensions.get('window');
 
 export default function WorkoutDetailsModal({ isVisible, onClose, workout }) {
@@ -127,7 +127,7 @@ export default function WorkoutDetailsModal({ isVisible, onClose, workout }) {
                     {/* Средний темп (для бега) */}
                     {isRun && (
                         <View style={styles.detailItem}>
-                            <View style={[styles.detailIconBox, { backgroundColor: '#1C1C1E' }]}>
+                            <View style={[styles.detailIconBox, { backgroundColor: colors.cardBg }]}>
                                 <Activity size={20} color="#8E8E93" />
                             </View>
                             <View>
@@ -140,7 +140,7 @@ export default function WorkoutDetailsModal({ isVisible, onClose, workout }) {
                     {/* Шаги */}
                     {stepsVal > 0 && (
                         <View style={styles.detailItem}>
-                            <View style={[styles.detailIconBox, { backgroundColor: '#1C1C1E' }]}>
+                            <View style={[styles.detailIconBox, { backgroundColor: colors.cardBg }]}>
                                 <Footprints size={20} color="#BF5AF2" />
                             </View>
                             <View>
@@ -152,7 +152,7 @@ export default function WorkoutDetailsModal({ isVisible, onClose, workout }) {
 
                     {/* Интенсивность (расчетная) */}
                     <View style={styles.detailItem}>
-                        <View style={[styles.detailIconBox, { backgroundColor: '#1C1C1E' }]}>
+                        <View style={[styles.detailIconBox, { backgroundColor: colors.cardBg }]}>
                             <Zap size={20} color="#FFD60A" />
                         </View>
                         <View>
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   
   headerContent: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   iconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', shadowColor: "#000", shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.2, shadowRadius: 5 },
-  headerTitle: { fontSize: 28, fontFamily: 'Inter_800ExtraBold', color: 'white', marginBottom: 2 },
+  headerTitle: { fontSize: 28, fontFamily: 'Inter_800ExtraBold', color: colors.textPrimary, marginBottom: 2 },
   headerDate: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: 'rgba(255,255,255,0.8)' },
 
   scrollContent: { padding: 20, paddingTop: 30 },
@@ -226,30 +226,30 @@ const styles = StyleSheet.create({
   // Stats Cards
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 30 },
   statCard: { 
-      flex: 1, backgroundColor: '#1C1C1E', borderRadius: 20, padding: 16, 
+      flex: 1, backgroundColor: colors.cardBg, borderRadius: 20, padding: 16, 
       alignItems: 'center', justifyContent: 'center', minHeight: 100, position: 'relative'
   },
-  statValue: { fontSize: 24, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  statLabel: { color: '#8E8E93', fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  statValue: { fontSize: 24, fontFamily: 'Inter_700Bold', marginBottom: 4, color: colors.textPrimary },
+  statLabel: { color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   statIcon: { position: 'absolute', top: 10, right: 10, opacity: 0.3 },
 
   // Section
   section: { marginBottom: 30 },
-  sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: 'white', marginBottom: 15, marginLeft: 5 },
+  sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: colors.textPrimary, marginBottom: 15, marginLeft: 5 },
   
   // Details Grid
-  detailsGrid: { backgroundColor: '#1C1C1E', borderRadius: 20, padding: 20, gap: 20 },
+  detailsGrid: { backgroundColor: colors.cardBg, borderRadius: 20, padding: 20, gap: 20 },
   detailItem: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   detailIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
-  detailValue: { fontSize: 18, fontFamily: 'Inter_700Bold', color: 'white' },
-  detailLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
+  detailValue: { fontSize: 18, fontFamily: 'Inter_700Bold', color: colors.textPrimary },
+  detailLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', color: colors.textSecondary },
 
   // Notes
-  noteCard: { flexDirection: 'row', backgroundColor: '#1C1C1E', borderRadius: 20, padding: 20 },
+  noteCard: { flexDirection: 'row', backgroundColor: colors.cardBg, borderRadius: 20, padding: 20 },
   noteText: { color: 'rgba(255,255,255,0.8)', fontSize: 15, fontFamily: 'Inter_400Regular', lineHeight: 22, flex: 1 },
 
   // Map
   mapContainer: { height: 180, borderRadius: 20, overflow: 'hidden' },
   mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10 },
-  mapPlaceholderText: { color: '#8E8E93', fontSize: 14, fontFamily: 'Inter_500Medium' },
+  mapPlaceholderText: { color: colors.textSecondary, fontSize: 14, fontFamily: 'Inter_500Medium' },
 });

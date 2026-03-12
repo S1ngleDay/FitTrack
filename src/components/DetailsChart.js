@@ -86,10 +86,10 @@ export default function DetailsChart({ data, title, color, yAxisSuffix = "" }) {
                     yAxisThickness={0}
                     xAxisThickness={0}
                     
-                    yAxisTextStyle={{ color: '#8E8E93', fontSize: 10 }}
+                    yAxisTextStyle={{ color: colors.textSecondary, fontSize: 10 }}
                     // Ширина лейбла оси Y. Важно, чтобы она совпадала с визуальным отступом
                     yAxisLabelWidth={yAxisWidth} 
-                    xAxisLabelTextStyle={{ color: '#8E8E93', fontSize: 10, width: 40 }}
+                    xAxisLabelTextStyle={{ color: colors.textSecondary, fontSize: 10, width: 40 }}
                     yAxisLabelSuffix={yAxisSuffix}
                     
                     maxValue={maxValue}
@@ -104,7 +104,7 @@ export default function DetailsChart({ data, title, color, yAxisSuffix = "" }) {
 
 const styles = StyleSheet.create({
     chartContainer: {
-        backgroundColor: '#1C1C1E',
+        backgroundColor: colors.cardBg,
         marginHorizontal: 20,
         borderRadius: 24,
         padding: 20,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     chartTitle: {
-        color: 'white',
+        color: colors.textPrimary,
         fontSize: 18,
         fontFamily: 'Inter_600SemiBold',
         marginBottom: 20,

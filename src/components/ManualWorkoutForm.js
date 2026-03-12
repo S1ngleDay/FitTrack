@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 50 },
   
   sectionLabel: {
-    color: 'white', fontSize: 18, fontFamily: 'Inter_600SemiBold', marginBottom: 15
+    color: colors.textPrimary, fontSize: 18, fontFamily: 'Inter_600SemiBold', marginBottom: 15
   },
 
   typeSelector: {
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10, 
     paddingHorizontal: 16,
     borderRadius: 20, 
-    backgroundColor: '#1C1C1E',
+    backgroundColor: colors.cardBg,
     borderWidth: 1,
     borderColor: '#2C2C2E',
   },
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   typeText: { 
-    color: '#8E8E93', 
+    color: colors.textSecondary, 
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,
   },
@@ -237,29 +237,29 @@ const styles = StyleSheet.create({
     color: colors.primary 
   },
   
-  label: { color: '#8E8E93', marginBottom: 8, fontSize: 13, fontFamily: 'Inter_500Medium' },
+  label: { color: colors.textSecondary, marginBottom: 8, fontSize: 13, fontFamily: 'Inter_500Medium' },
 
   dateTimeButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#1C1C1E', padding: 16, borderRadius: 16,
+    backgroundColor: colors.cardBg, padding: 16, borderRadius: 16,
     borderWidth: 1, borderColor: '#2C2C2E',
     marginBottom: 15,
   },
-  dateTimeText: { color: 'white', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  dateTimeText: { color: colors.textPrimary, fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   
   pickerContainer: {
-      marginBottom: 20, backgroundColor: '#1C1C1E', borderRadius: 16, overflow: 'hidden', alignItems: 'center',
+      marginBottom: 20, backgroundColor: colors.cardBg, borderRadius: 16, overflow: 'hidden', alignItems: 'center',
       borderWidth: 1, borderColor: '#2C2C2E'
   },
 
   inputGroup: { marginBottom: 20 },
   input: {
-    backgroundColor: '#1C1C1E', color: 'white', padding: 16, borderRadius: 16, fontSize: 18, fontFamily: 'Inter_600SemiBold',
+    backgroundColor: colors.cardBg, color: colors.textPrimary, padding: 16, borderRadius: 16, fontSize: 18, fontFamily: 'Inter_600SemiBold',
     borderWidth: 1, borderColor: '#2C2C2E'
   },
   
   buttonsRow: { flexDirection: 'row', gap: 15, marginTop: 10 },
-  cancelButton: { flex: 1, padding: 16, borderRadius: 16, backgroundColor: '#1C1C1E', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
+  cancelButton: { flex: 1, padding: 16, borderRadius: 16, backgroundColor: colors.cardBg, alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
   cancelText: { color: '#FF3B30', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   saveButton: { flex: 1, padding: 16, borderRadius: 16, backgroundColor: colors.primary, alignItems: 'center' },
   saveText: { color: '#003300', fontSize: 16, fontFamily: 'Inter_700Bold' },

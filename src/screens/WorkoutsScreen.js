@@ -244,15 +244,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
   headerContainer: { marginBottom: 10, marginTop: 10 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  pageTitle: { color: 'white', fontSize: 32, fontFamily: 'Inter_700Bold' },
+  pageTitle: { color: colors.textPrimary, fontSize: 32, fontFamily: 'Inter_700Bold' },
   circleButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#3A3A3C' },
-  startButton: { borderRadius: 20, marginBottom: 25, shadowColor: "#32d74b", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 5 },
+  startButton: { borderRadius: 20, marginBottom: 25, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 5 },
   gradientBtn: { padding: 18, borderRadius: 20 },
   btnContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   startButtonText: { color: '#003300', fontSize: 18, fontFamily: 'Inter_700Bold' },
   playIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center' },
-  listTitle: { color: '#8E8E93', fontSize: 16, fontFamily: 'Inter_600SemiBold', marginBottom: 10 },
-  emptyText: { color: '#555', textAlign: 'center', marginTop: 50 },
+  listTitle: { color: colors.textSecondary, fontSize: 16, fontFamily: 'Inter_600SemiBold', marginBottom: 10 },
+  emptyText: { color: colors.textSecondary, textAlign: 'center', marginTop: 50 },
 
   // СТИЛИ КНОПКИ УДАЛЕНИЯ (ИСПРАВЛЕННЫЕ)
   deleteActionWrapper: {
