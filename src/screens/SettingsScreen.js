@@ -9,7 +9,8 @@ import {
   ChevronRight, Crown, Shield, X, Edit2, Camera 
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker'; // Если есть expo-image-picker
+import * as ImagePicker from 'expo-image-picker'; 
+import * as FileSystem from 'expo-file-system/legacy';
 
 import SettingItem from '../components/SettingItem'; 
 import colors from '../constants/colors';
@@ -18,7 +19,10 @@ import { useWorkoutStore } from '../store/workoutStore';
 import { getMetricValue } from '../utils/statsCalculator';
 
 export default function SettingsScreen({ navigation }) {
-  const { user, settings, toggleSetting, updateUser } = useUserStore();
+  const user = useUserStore((s) => s.user);
+  const settings = useUserStore((s) => s.settings);
+  const toggleSetting = useUserStore((s) => s.toggleSetting);
+  const updateUser = useUserStore((s) => s.updateUser);
   const workouts = useWorkoutStore(s => s.workouts);
 
   // --- РАСЧЕТ СТАТИСТИКИ (РЕАЛЬНЫЙ) ---
@@ -27,18 +31,14 @@ export default function SettingsScreen({ navigation }) {
     let totalMinutes = 0;
     
     workouts.forEach(w => {
-       // Берем длительность из корня или metrics
        const dur = w.duration || getMetricValue(w.metrics, '⏱️') || 0;
        totalMinutes += dur;
     });
 
-    // Если меньше часа, пишем минуты, иначе часы (например 1.5ч)
     const timeDisplay = totalMinutes < 60 
         ? `${totalMinutes}м` 
         : `${(totalMinutes / 60).toFixed(1)}ч`;
 
-    // Расчет серии (упрощенно: считаем подряд идущие дни)
-    // Пока оставим хардкод, но логика готова для расширения
     const streak = 5; 
     
     return { count: totalWorkouts, time: timeDisplay, streak };
@@ -49,47 +49,90 @@ export default function SettingsScreen({ navigation }) {
   const [tempName, setTempName] = useState(user.name);
   const [tempWeight, setTempWeight] = useState(String(user.weight));
   const [tempHeight, setTempHeight] = useState(String(user.height));
+  const [tempAge, setTempAge] = useState(String(user.age || ''));
+  const [tempGender, setTempGender] = useState(user.gender || 'male');
 
   const handleSaveProfile = () => {
     updateUser({
       name: tempName,
       weight: parseFloat(tempWeight) || user.weight,
       height: parseFloat(tempHeight) || user.height,
+      age: parseInt(tempAge, 10) || user.age,
+      gender: tempGender,
     });
     setEditVisible(false);
   };
 
-  const pickImage = async () => {
-    // Пример интеграции выбора фото (нужен expo-image-picker)
-    // let result = await ImagePicker.launchImageLibraryAsync({ ... });
-    Alert.alert('Функция в разработке', 'Скоро вы сможете загрузить свое фото!');
+  const handleOpenEdit = () => {
+    // Подтягиваем актуальные данные перед открытием
+    setTempName(user.name);
+    setTempWeight(String(user.weight));
+    setTempHeight(String(user.height));
+    setTempAge(String(user.age || ''));
+    setTempGender(user.gender || 'male');
+    setEditVisible(true);
   };
+
+  // --- УПРАВЛЕНИЕ АВАТАРКОЙ ---
+  const handleAvatarPress = () => {
+    const buttons = [
+      { text: 'Выбрать из галереи', onPress: () => setTimeout(pickImage, 100) },
+    ];
+
+    if (user.avatar) {
+      buttons.push({ text: 'Удалить фото', onPress: removeAvatar, style: 'destructive' });
+    }
+
+    buttons.push({ text: 'Отмена', style: 'cancel' });
+
+    Alert.alert('Фото профиля', 'Выберите действие', buttons);
+  };
+
+  const pickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.status !== 'granted') {
+        Alert.alert('Требуется разрешение', 'Пожалуйста, разрешите доступ к галерее.');
+        return;
+      }
+
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], 
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        const tempUri = result.assets[0].uri;
+        const fileName = tempUri.split('/').pop();
+        const permanentUri = FileSystem.documentDirectory + fileName;
+
+        if (user.avatar && user.avatar.includes(FileSystem.documentDirectory)) {
+          await FileSystem.deleteAsync(user.avatar, { idempotent: true });
+        }
+
+        await FileSystem.copyAsync({ from: tempUri, to: permanentUri });
+        updateUser({ avatar: permanentUri });
+      }
+    } catch (error) {
+      Alert.alert('Ошибка', 'Что-то пошло не так при загрузке фотографии.');
+    }
+  };
+
+  const removeAvatar = async () => {
+    if (user.avatar && user.avatar.includes(FileSystem.documentDirectory)) {
+      try { await FileSystem.deleteAsync(user.avatar, { idempotent: true }); } 
+      catch (error) {}
+    }
+    updateUser({ avatar: null });
+  };
+
 
   // --- БЕЗОПАСНОСТЬ ---
-  const handleBiometric = () => {
-    Alert.alert('Биометрия', 'Face ID / Touch ID будут использоваться для входа');
-  };
-
   const handleSecuritySettings = () => {
-    navigation.navigate('SecurityScreen');
-  };
-
-  const handleDeleteData = () => {
-    Alert.alert(
-      'Удалить все данные',
-      'Это действие необратимо. Все тренировки и данные будут удалены.',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        { 
-          text: 'Удалить', 
-          onPress: () => {
-            // логика удаления данных
-            Alert.alert('Успешно', 'Все данные удалены');
-          },
-          style: 'destructive'
-        }
-      ]
-    );
+    // navigation.navigate('SecurityScreen');
   };
 
   return (
@@ -99,7 +142,7 @@ export default function SettingsScreen({ navigation }) {
         {/* 1. Header Профиля */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-              <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
+              <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8}>
                 {user.avatar ? (
                     <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
                 ) : (
@@ -115,14 +158,18 @@ export default function SettingsScreen({ navigation }) {
           
           <View style={styles.nameRow}>
              <Text style={styles.profileName}>{user.name}</Text>
-             <TouchableOpacity onPress={() => setEditVisible(true)} hitSlop={10}>
-                <Edit2 size={16} color="#007AFF" style={{ marginLeft: 8 }} />
+             <TouchableOpacity onPress={handleOpenEdit} hitSlop={10}>
+                <Edit2 size={16} color="#0A84FF" style={{ marginLeft: 8 }} />
              </TouchableOpacity>
           </View>
           
           <Text style={styles.profileEmail}>{user.email}</Text>
+          
+          {/* Добавил возраст в плашку */}
           <View style={styles.physicalTag}>
-             <Text style={styles.physicalText}>{user.weight} кг • {user.height} см</Text>
+             <Text style={styles.physicalText}>
+                {user.age ? `${user.age} лет • ` : ''}{user.weight} кг • {user.height} см
+             </Text>
           </View>
 
           {/* Микро-статистика */}
@@ -147,17 +194,11 @@ export default function SettingsScreen({ navigation }) {
         {/* Контент */}
         <View style={styles.contentContainer}>
           
-          {/* 2. Баннер PRO */}
+          {/* Баннер PRO */}
           <TouchableOpacity activeOpacity={0.9} style={styles.proBanner}>
-              <LinearGradient
-                  colors={['#1C1C1E', '#2C2C2E']} // Более строгий градиент
-                  start={{x: 0, y: 0}} end={{x: 1, y: 1}}
-                  style={styles.proGradient}
-              >
+              <LinearGradient colors={['#1C1C1E', '#2C2C2E']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.proGradient}>
                   <View style={styles.proContent}>
-                      <View style={[styles.proIconCircle, { backgroundColor: '#FFD60A' }]}>
-                          <Crown size={20} color="black" />
-                      </View>
+                      <View style={[styles.proIconCircle, { backgroundColor: '#FFD60A' }]}><Crown size={20} color="black" /></View>
                       <View style={{flex: 1}}>
                           <Text style={[styles.proTitle, { color: '#FFD60A' }]}>PRO Premium</Text>
                           <Text style={styles.proSubtitle}>Персональные планы и статистика</Text>
@@ -169,62 +210,33 @@ export default function SettingsScreen({ navigation }) {
               </LinearGradient>
           </TouchableOpacity>
 
-          {/* 3. Настройки */}
           <SettingsGroup title="АККАУНТ">
-             <SettingItem 
-                icon={User} title="Личные данные" color="#007AFF" hasChevron 
-                onPress={() => setEditVisible(true)}
-             />
-             <SettingItem 
-                icon={Shield} title="Безопасность" color="#32d74b" hasChevron
-                onPress={handleSecuritySettings}
-             />
+             <SettingItem icon={User} title="Личные данные" color="#0A84FF" hasChevron onPress={handleOpenEdit}/>
+             <SettingItem icon={Shield} title="Безопасность" color="#32d74b" hasChevron onPress={handleSecuritySettings}/>
           </SettingsGroup>
 
           <SettingsGroup title="ПРИЛОЖЕНИЕ">
-             <SettingItem 
-                icon={Bell} title="Уведомления" color="#FF3B30" 
-                type="switch" value={settings.notifications} 
-                onToggle={() => toggleSetting('notifications')} 
-             />
-             <SettingItem 
-                icon={Globe} title="Язык" color="#5856D6" 
-                type="value" value={settings.language} hasChevron 
-             />
-             <SettingItem 
-                icon={Moon} title="Темная тема" color="#1C1C1E" 
-                type="switch" value={settings.isDark} 
-                onToggle={() => toggleSetting('isDark')} 
-             />
+             <SettingItem icon={Bell} title="Уведомления" color="#FF3B30" type="switch" value={settings?.notifications} onToggle={() => toggleSetting('notifications')} />
+             <SettingItem icon={Globe} title="Язык" color="#5856D6" type="value" value={settings?.language} hasChevron />
+             <SettingItem icon={Moon} title="Темная тема" color="#1C1C1E" type="switch" value={settings?.isDark} onToggle={() => toggleSetting('isDark')} />
           </SettingsGroup>
 
           <SettingsGroup title="ПОДДЕРЖКА">
              <SettingItem icon={HelpCircle} title="Помощь и FAQ" color="#8E8E93" hasChevron />
-             <SettingItem 
-                icon={LogOut} title="Выйти" color="#FF3B30" isDestructive 
-                onPress={() => Alert.alert('Выход', 'Вы уверены?', [{text: 'Отмена'}, {text: 'Выйти', style: 'destructive'}])} 
-             />
+             <SettingItem icon={LogOut} title="Выйти" color="#FF3B30" isDestructive onPress={() => Alert.alert('Выход', 'Вы уверены?', [{text: 'Отмена'}, {text: 'Выйти', style: 'destructive'}])} />
           </SettingsGroup>
 
-          <Text style={styles.versionText}>FitApp v1.0.2 (Build 2026)</Text>
+          <Text style={styles.versionText}>FitTrack v1.0.0 (Build 2026)</Text>
           
         </View>
       </ScrollView>
 
-      {/* МОДАЛКА РЕДАКТИРОВАНИЯ (Улучшенная) */}
+      {/* МОДАЛКА РЕДАКТИРОВАНИЯ */}
       <Modal visible={editVisible} animationType="slide" transparent onRequestClose={() => setEditVisible(false)}>
-        <KeyboardAvoidingView 
-           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-           style={styles.modalOverlay}
-        >
-           <TouchableOpacity 
-              style={styles.modalBackdrop} 
-              activeOpacity={1} 
-              onPress={() => setEditVisible(false)} 
-           />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setEditVisible(false)} />
            
            <View style={styles.modalContainer}>
-              {/* Drag Indicator */}
               <View style={styles.dragIndicator} />
 
               <View style={styles.modalHeader}>
@@ -235,37 +247,46 @@ export default function SettingsScreen({ navigation }) {
               </View>
 
               <View style={styles.modalBody}>
+                  {/* ИМЯ */}
                   <View style={styles.inputGroup}>
                      <Text style={styles.inputLabel}>Имя</Text>
-                     <TextInput 
-                       style={styles.input} 
-                       value={tempName} 
-                       onChangeText={setTempName} 
-                       placeholderTextColor="#555"
-                     />
+                     <TextInput style={styles.input} value={tempName} onChangeText={setTempName} placeholderTextColor="#555" />
                   </View>
 
+                  {/* ПОЛ */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Пол</Text>
+                    <View style={styles.genderRow}>
+                      <TouchableOpacity 
+                        style={[styles.genderBtn, tempGender === 'male' && styles.genderBtnActive]}
+                        onPress={() => setTempGender('male')}
+                      >
+                        <Text style={[styles.genderText, tempGender === 'male' && styles.genderTextActive]}>Мужской</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.genderBtn, tempGender === 'female' && styles.genderBtnActive]}
+                        onPress={() => setTempGender('female')}
+                      >
+                        <Text style={[styles.genderText, tempGender === 'female' && styles.genderTextActive]}>Женский</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* ФИЗИЧЕСКИЕ ДАННЫЕ В РЯД (3 колонки) */}
                   <View style={styles.rowInputs}>
                      <View style={[styles.inputGroup, {flex: 1}]}>
-                        <Text style={styles.inputLabel}>Вес (кг)</Text>
-                        <TextInput 
-                          style={styles.input} 
-                          value={tempWeight} 
-                          onChangeText={setTempWeight} 
-                          keyboardType="numeric"
-                          placeholderTextColor="#555"
-                        />
+                        <Text style={styles.inputLabel}>Возраст</Text>
+                        <TextInput style={styles.input} value={tempAge} onChangeText={setTempAge} keyboardType="numeric" placeholderTextColor="#555" maxLength={3} />
                      </View>
-                     <View style={{width: 15}} />
+                     <View style={{width: 10}} />
+                     <View style={[styles.inputGroup, {flex: 1}]}>
+                        <Text style={styles.inputLabel}>Вес (кг)</Text>
+                        <TextInput style={styles.input} value={tempWeight} onChangeText={setTempWeight} keyboardType="numeric" placeholderTextColor="#555" maxLength={4} />
+                     </View>
+                     <View style={{width: 10}} />
                      <View style={[styles.inputGroup, {flex: 1}]}>
                         <Text style={styles.inputLabel}>Рост (см)</Text>
-                        <TextInput 
-                          style={styles.input} 
-                          value={tempHeight} 
-                          onChangeText={setTempHeight} 
-                          keyboardType="numeric"
-                          placeholderTextColor="#555"
-                        />
+                        <TextInput style={styles.input} value={tempHeight} onChangeText={setTempHeight} keyboardType="numeric" placeholderTextColor="#555" maxLength={3} />
                      </View>
                   </View>
 
@@ -274,7 +295,6 @@ export default function SettingsScreen({ navigation }) {
                   </TouchableOpacity>
               </View>
               
-              {/* Безопасная зона снизу */}
               <View style={{ height: Platform.OS === 'ios' ? 20 : 10 }} />
            </View>
         </KeyboardAvoidingView>
@@ -284,7 +304,6 @@ export default function SettingsScreen({ navigation }) {
   );
 }
 
-// Вспомогательный компонент для группировки
 const SettingsGroup = ({ title, children }) => (
   <View style={styles.settingsGroup}>
       <Text style={styles.groupTitle}>{title}</Text>
@@ -295,28 +314,25 @@ const SettingsGroup = ({ title, children }) => (
 );
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1, backgroundColor: colors.background || '#000' },
   
-  profileHeader: { alignItems: 'center', paddingTop: 20, paddingBottom: 30, backgroundColor: colors.background },
+  profileHeader: { alignItems: 'center', paddingTop: 20, paddingBottom: 30, backgroundColor: colors.background || '#000' },
   avatarContainer: { position: 'relative', marginBottom: 15 },
-  avatarPlaceholder: { width: 90, height: 90, borderRadius: 45, backgroundColor: colors.cardBg, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
+  avatarPlaceholder: { width: 90, height: 90, borderRadius: 45, backgroundColor: colors.cardBg || '#1C1C1E', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
   avatarImage: { width: 90, height: 90, borderRadius: 45 },
-  cameraBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#007AFF', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.background },
+  cameraBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#0A84FF', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.background || '#000' },
   
   nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  profileName: { fontSize: 22, fontFamily: 'Inter_700Bold', color: colors.textPrimary },
-  profileEmail: { fontSize: 13, fontFamily: 'Inter_500Medium', color: colors.textSecondary, marginBottom: 8 },
+  profileName: { fontSize: 22, fontFamily: 'Inter_700Bold', color: 'white' },
+  profileEmail: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#8E8E93', marginBottom: 8 },
   
-  physicalTag: { backgroundColor: colors.cardBg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 20 },
-  physicalText: { color: colors.primary, fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  physicalTag: { backgroundColor: colors.cardBg || '#1C1C1E', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 20 },
+  physicalText: { color: colors.primary || '#CCFF00', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   
-  miniStatsContainer: { 
-      flexDirection: 'row', justifyContent: 'space-around', width: '90%', 
-      backgroundColor: colors.cardBg, borderRadius: 16, paddingVertical: 15 
-  },
+  miniStatsContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '90%', backgroundColor: colors.cardBg || '#1C1C1E', borderRadius: 16, paddingVertical: 15 },
   miniStatItem: { alignItems: 'center', flex: 1 },
-  miniStatValue: { fontSize: 16, fontFamily: 'Inter_700Bold', color: colors.textPrimary, marginBottom: 2 },
-  miniStatLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', color: colors.textSecondary },
+  miniStatValue: { fontSize: 16, fontFamily: 'Inter_700Bold', color: 'white', marginBottom: 2 },
+  miniStatLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
   dividerVertical: { width: 1, height: 30, backgroundColor: '#2C2C2E' },
 
   contentContainer: { paddingHorizontal: 20, paddingTop: 10 },
@@ -326,41 +342,40 @@ const styles = StyleSheet.create({
   proContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   proIconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   proTitle: { fontSize: 16, fontFamily: 'Inter_800ExtraBold' },
-  proSubtitle: { fontSize: 12, fontFamily: 'Inter_500Medium', color: colors.textSecondary },
+  proSubtitle: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
   proButton: { backgroundColor: 'rgba(255, 214, 10, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   proButtonText: { color: '#FFD60A', fontSize: 12, fontFamily: 'Inter_700Bold' },
 
   settingsGroup: { marginBottom: 25 },
-  groupTitle: { color: colors.textSecondary, fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 8, marginLeft: 12, textTransform: 'uppercase' },
-  groupContainer: { backgroundColor: colors.cardBg, borderRadius: 16, overflow: 'hidden' },
+  groupTitle: { color: '#8E8E93', fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 8, marginLeft: 12, textTransform: 'uppercase' },
+  groupContainer: { backgroundColor: colors.cardBg || '#1C1C1E', borderRadius: 16, overflow: 'hidden' },
   
   versionText: { textAlign: 'center', color: '#3A3A3C', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 10, marginBottom: 20 },
 
   // --- MODAL ---
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1 },
-  modalContainer: { 
-      backgroundColor: colors.cardBg, 
-      borderTopLeftRadius: 24, borderTopRightRadius: 24, 
-      paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10,
-      borderWidth: 1, borderColor: '#2C2C2E'
-  },
+  modalContainer: { backgroundColor: colors.cardBg || '#1C1C1E', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10, borderWidth: 1, borderColor: '#2C2C2E' },
   dragIndicator: { width: 40, height: 4, backgroundColor: '#3A3A3C', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { color: colors.textPrimary, fontSize: 18, fontFamily: 'Inter_700Bold' },
+  modalTitle: { color: 'white', fontSize: 18, fontFamily: 'Inter_700Bold' },
   closeBtn: { padding: 5, backgroundColor: '#2C2C2E', borderRadius: 15 },
   
   modalBody: { paddingBottom: 10 },
   
   inputGroup: { marginBottom: 15 },
-  inputLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 8, marginLeft: 4, fontFamily: 'Inter_500Medium' },
-  input: { 
-      backgroundColor: colors.background, borderRadius: 12, padding: 16, 
-      color: colors.textPrimary, fontSize: 16, fontFamily: 'Inter_500Medium',
-      borderWidth: 1, borderColor: '#2C2C2E'
-  },
+  inputLabel: { color: '#8E8E93', fontSize: 12, marginBottom: 8, marginLeft: 4, fontFamily: 'Inter_500Medium' },
+  input: { backgroundColor: colors.background || '#000', borderRadius: 12, padding: 16, color: 'white', fontSize: 16, fontFamily: 'Inter_500Medium', borderWidth: 1, borderColor: '#2C2C2E', textAlign: 'center' },
+  
   rowInputs: { flexDirection: 'row', marginBottom: 25 },
   
-  saveButton: { backgroundColor: '#007AFF', padding: 16, borderRadius: 16, alignItems: 'center' },
+  // Кнопки пола
+  genderRow: { flexDirection: 'row', gap: 10 },
+  genderBtn: { flex: 1, backgroundColor: colors.background || '#000', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
+  genderBtnActive: { backgroundColor: 'rgba(10, 132, 255, 0.15)', borderColor: '#0A84FF' },
+  genderText: { color: '#8E8E93', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  genderTextActive: { color: '#0A84FF' },
+  
+  saveButton: { backgroundColor: '#0A84FF', padding: 16, borderRadius: 16, alignItems: 'center' },
   saveButtonText: { color: 'white', fontSize: 16, fontFamily: 'Inter_700Bold' },
 });

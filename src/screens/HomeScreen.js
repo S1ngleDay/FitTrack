@@ -1,9 +1,10 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context'; // устаревший SafeAreaView заменили
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CircleUser, Play, Footprints, Flame, Clock, Dumbbell, Wind, Bike } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
+import { useUserStore } from '../store/userStore';
 
 import StatsCard from '../components/StatsCard';
 import colors from '../constants/colors';
@@ -43,6 +44,8 @@ const FALLBACK_CONFIG = {
 
 export default function HomeScreen({ navigation }) {
   const workouts = useWorkoutStore(s => s.workouts);
+  const user = useUserStore(state => state.user);
+  const firstName = user.name ? user.name.split(' ')[0] : 'Гость';
   const [liveSteps, setLiveSteps] = useState(0);
   const [stepsLoaded, setStepsLoaded] = useState(false);
   
@@ -183,92 +186,25 @@ export default function HomeScreen({ navigation }) {
     });
   };
 
-  const SECURITY_SETTINGS = [
-    {
-      id: 'biometric',
-      title: 'Биометрия',
-      subtitle: 'Face ID / Отпечаток',
-      type: 'toggle',
-      icon: 'Lock',
-      description: 'Защита приложения биометрией'
-    },
-    {
-      id: 'pin',
-      title: 'PIN-код',
-      subtitle: '4-6 символов',
-      type: 'input',
-      icon: 'Lock',
-      description: 'Дополнительная защита приложения'
-    },
-    {
-      id: 'sessionTimeout',
-      title: 'Время сеанса',
-      subtitle: '5 мин',
-      type: 'select',
-      icon: 'Clock',
-      options: ['1 мин', '5 мин', '15 мин', 'Никогда'],
-      description: 'Автоблокировка приложения при неактивности'
-    },
-    {
-      id: 'dataEncryption',
-      title: 'Шифрование данных',
-      subtitle: 'Включено',
-      type: 'toggle',
-      icon: 'Shield',
-      description: 'Локальное шифрование хранимых данных'
-    },
-    {
-      id: 'permissionsManage',
-      title: 'Разрешения',
-      type: 'button',
-      icon: 'Settings',
-      description: 'GPS, Датчики, Камера, Контакты'
-    },
-    {
-      id: 'dataPrivacy',
-      title: 'Конфиденциальность',
-      subtitle: 'Пользовательское',
-      type: 'button',
-      icon: 'Eye',
-      description: 'Кто видит ваши тренировки и данные'
-    },
-    {
-      id: 'deleteData',
-      title: 'Удалить все данные',
-      subtitle: 'Необратимо',
-      type: 'button',
-      icon: 'Trash2',
-      color: '#FF453A',
-      description: 'Удалить все тренировки и настройки'
-    },
-    {
-      id: 'activityLog',
-      title: 'История входов',
-      type: 'button',
-      icon: 'History',
-      description: 'Дата и время последних входов'
-    },
-    {
-      id: 'changePassword',
-      title: 'Изменить пароль',
-      type: 'button',
-      icon: 'Key',
-      description: 'Для облачной синхронизации'
-    }
-  ];
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* HEADER */}
         <View style={styles.header}>
           <View>
             <Text style={styles.date}>{formattedDate}</Text>
-            <Text style={styles.greeting}>Привет, Петр</Text>
+             <Text style={styles.greeting}>Привет, {firstName}</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Настройки')} style={styles.avatarContainer}>
-            <CircleUser color="#E5E5EA" size={32} />
+            {user.avatar ? (
+              <Image 
+                source={{ uri: user.avatar }} 
+                style={{ width: 32, height: 32, borderRadius: 16 }} 
+              />
+            ) : (
+              <CircleUser color="#E5E5EA" size={32} />
+            )}
           </TouchableOpacity>
         </View>
 
@@ -424,7 +360,6 @@ const styles = StyleSheet.create({
   quickStartSub: { fontSize: 14, fontFamily: 'Inter_500Medium', color: 'rgba(0,0,0,0.6)' },
   programsScroll: { gap: 12, paddingRight: 20 },
 
-  // ✅ Карточка программы (немного выше, чтобы вместить бейдж)
   programCard: {
     width: 145, height: 170, borderRadius: 24,
     backgroundColor: colors.cardBg, borderWidth: 1,

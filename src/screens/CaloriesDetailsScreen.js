@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { ArrowLeft, Flame, Zap, Utensils, Activity } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PieChart } from 'react-native-gifted-charts';
@@ -11,7 +13,8 @@ import { useWorkoutStore } from '../store/workoutStore';
 import { getMetricValue, isToday } from '../utils/statsCalculator';
 
 export default function CaloriesDetailsScreen({ navigation }) {
-  const workouts = useWorkoutStore(s => s.workouts);
+    const insets = useSafeAreaInsets();
+    const workouts = useWorkoutStore(s => s.workouts);
 
   const stats = useMemo(() => {
     const todayWorkouts = workouts.filter(w => isToday(w.date));
@@ -54,7 +57,7 @@ export default function CaloriesDetailsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 0 }]}>
         
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -161,7 +164,6 @@ export default function CaloriesDetailsScreen({ navigation }) {
 // ... styles ...
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20, paddingHorizontal: 20 },
   headerTitle: { color: colors.textPrimary, fontSize: 20, fontFamily: 'Inter_600SemiBold' },
   backButton: { padding: 8, backgroundColor: '#2C2C2E', borderRadius: 12 },

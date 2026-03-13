@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
-import BottomTabNavigator from './BottomTabNavigator';
+import SwipeableScreens from './SwipeableScreens';
 import ActiveRunScreen from '../screens/ActiveRunScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import SecurityScreen from '../screens/SecurityScreen';
@@ -18,10 +18,10 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
 
-      {/* Главный экран с табами */}
+      {/* Главный экран с табами и свайпом */}
       <Stack.Screen 
         name="Home" 
-        component={BottomTabNavigator} 
+        component={SwipeableScreens} 
       />
 
       {/* Тренировка */}
@@ -42,25 +42,25 @@ export default function AppNavigator() {
       <Stack.Screen 
         name="TimeDetails" 
         component={TimeDetailsScreen} 
-        options={{ headerShown: true, title: 'Время', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
+        options={{ headerShown: false, title: 'Время', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
       />
       
       <Stack.Screen 
         name="CaloriesDetails" 
         component={CaloriesDetailsScreen} 
-        options={{ headerShown: true, title: 'Калории', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
+        options={{ headerShown: false, title: 'Калории', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
       />
       
       <Stack.Screen 
         name="DistanceDetails" 
         component={DistanceDetailsScreen} 
-        options={{ headerShown: true, title: 'Дистанция', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
+        options={{ headerShown: false, title: 'Дистанция', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
       />
       
       <Stack.Screen 
         name="StepsDetails" 
         component={StepsDetailsScreen} 
-        options={{ headerShown: true, title: 'Шаги', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
+        options={{ headerShown: false, title: 'Шаги', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
       />
 
       <Stack.Screen 

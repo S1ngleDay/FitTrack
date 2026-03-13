@@ -1,201 +1,134 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
-import { TrendingUp, TrendingDown, Calendar, ArrowRight, Zap, AlertCircle, Award } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Info, ArrowRight, Activity, Flame, MessageSquare } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import colors from '../constants/colors';
 import { useWorkoutStore } from '../store/workoutStore';
 import { getMetricValue, parseWorkoutDate } from '../utils/statsCalculator';
 
+// Импортируем функции анализа
+import { 
+  analyzeWeeklyStats, 
+  generateCoachAdvice, 
+  getMotivationalQuote, 
+  getHealthScore, 
+  getScoreDescription 
+} from '../utils/coachAnalyzer'; 
+
 const { width } = Dimensions.get('window');
 
 export default function StatisticsScreen() {
-  const [period, setPeriod] = useState('Неделя'); // 'Неделя' | 'Месяц' | 'Год'
+  const [period, setPeriod] = useState('Неделя'); 
   const workouts = useWorkoutStore(s => s.workouts);
+  
+  // В реальном приложении шаги берутся из датчика
+  const dailyStats = { steps: 8500 }; 
 
-  // ✅ 1. РАСЧЕТ ДАННЫХ ДЛЯ ГРАФИКА
+  // ✅ 1. АНАЛИЗ И СОВЕТЫ ТРЕНЕРА
+  const analysisData = useMemo(() => {
+    const stats = analyzeWeeklyStats(workouts);
+    const healthScore = getHealthScore(stats, dailyStats);
+    const scoreInfo = getScoreDescription(healthScore);
+    const advices = generateCoachAdvice(stats, dailyStats);
+    const quote = getMotivationalQuote();
+
+    return { stats, healthScore, scoreInfo, advices, quote };
+  }, [workouts]);
+
+  // ✅ 2. ГРАФИК АКТИВНОСТИ (С группировкой)
   const chartStats = useMemo(() => {
     const now = new Date();
-    let daysCount = 7;
-    let labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    
-    if (period === 'Месяц') {
-      daysCount = 30;
-      labels = Array.from({ length: 30 }, (_, i) => String(i + 1));
-    } else if (period === 'Год') {
-      daysCount = 12;
-      labels = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-    }
 
-    // Создаем массив дат (от daysCount назад до сегодня)
-    const dates = [];
-    for (let i = daysCount - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      dates.push(d);
-    }
-
-    // Группируем калории по дням
+    // 1. Собираем все калории по датам в словарь
     const dataMap = {};
     workouts.forEach(w => {
-      const wDate = parseWorkoutDate(w.date);
+      const wDate = parseWorkoutDate(w.date || w.startTime);
       const dateKey = wDate.toDateString();
-      const cal = getMetricValue(w.metrics, '🔥');
+      const cal = getMetricValue(w.metrics, '🔥') || w.calories || 0;
       dataMap[dateKey] = (dataMap[dateKey] || 0) + cal;
     });
 
-    // Формируем данные для графика
-    const barData = dates.map((d, i) => {
-      const key = d.toDateString();
-      const value = dataMap[key] || 0;
-      const isWeekend = period === 'Неделя' && (i === 5 || i === 6);
+    let rawBarData = [];
+
+    // 2. Логика для НЕДЕЛИ (7 дней)
+    if (period === 'Неделя') {
+      const labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+      const dates = [];
+      
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        dates.push(d);
+      }
+
+      rawBarData = dates.map((d, i) => ({
+        value: dataMap[d.toDateString()] || 0,
+        label: labels[i] || '',
+      }));
+    } 
+    // 3. Логика для МЕСЯЦА (4 недели)
+    else {
+      const weeks = [0, 0, 0, 0]; // 4 корзины для 4 недель
+      const labels = ['1 нед', '2 нед', '3 нед', '4 нед'];
+
+      // Берем последние 28 дней и раскидываем их по неделям
+      for (let i = 27; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        
+        // Индекс недели: 0, 1, 2 или 3
+        const weekIndex = Math.floor((27 - i) / 7); 
+        const key = d.toDateString();
+        
+        weeks[weekIndex] += dataMap[key] || 0;
+      }
+
+      rawBarData = weeks.map((val, idx) => ({
+        value: val,
+        label: labels[idx],
+      }));
+    }
+
+    // 4. Находим максимумы и нули для стилизации
+    const maxValue = Math.max(...rawBarData.map(b => b.value));
+    const totalCal = rawBarData.reduce((sum, b) => sum + b.value, 0);
+    const allZero = rawBarData.every(b => b.value === 0);
+
+    // 5. Формируем финальные данные для графика
+    const barData = rawBarData.map(item => {
+      const isLeader = item.value === maxValue && maxValue > 0;
       
       return {
-        value,
-        label: labels[i] || '',
-        frontColor: isWeekend && value === 0 ? '#2C2C2E' : '#32d74b',
+        ...item,
+        // Обычные зеленые, лидер лаймовый, пустые - темно-серые
+        frontColor: item.value === 0 ? '#2C2C2E' : (isLeader ? '#CCFF00' : '#32d74b'),
+        topLabelComponent: isLeader && period === 'Неделя' ? () => (
+          <Text style={styles.topLabelText}>Пик</Text>
+        ) : undefined,
       };
     });
 
-    // Находим максимум (для бейджа)
-    const maxValue = Math.max(...barData.map(b => b.value));
-    const maxIndex = barData.findIndex(b => b.value === maxValue);
-    if (maxIndex >= 0 && maxValue > 0) {
-      barData[maxIndex].topLabelComponent = () => (
-        <Text style={{ color: '#32d74b', fontSize: 10, marginBottom: 5 }}>Пик</Text>
-      );
-    }
-
-    // Считаем тотал
-    const totalCal = barData.reduce((sum, b) => sum + b.value, 0);
-
-    return { barData, totalCal };
+    return { barData, totalCal, allZero, maxValue };
   }, [workouts, period]);
 
-  // ✅ 2. ТРЕНД (Сравнение с предыдущим периодом)
-  const trend = useMemo(() => {
-    // Упрощенно: берем последние 7 дней vs предыдущие 7
-    const now = new Date();
-    const last7 = [];
-    const prev7 = [];
-
-    for (let i = 0; i < 7; i++) {
-      const d1 = new Date(now);
-      d1.setDate(now.getDate() - i);
-      last7.push(d1.toDateString());
-
-      const d2 = new Date(now);
-      d2.setDate(now.getDate() - i - 7);
-      prev7.push(d2.toDateString());
+  // Рендер иконок для советов
+  const renderAdviceIcon = (type) => {
+    switch(type) {
+      case 'success': return <Activity color="#32d74b" size={24} />;
+      case 'warning': return <Flame color="#FF9F0A" size={24} />;
+      case 'info': return <Info color="#0A84FF" size={24} />;
+      default: return <MessageSquare color="#8E8E93" size={24} />;
     }
-
-    const calcTotal = (keys) => {
-      return workouts
-        .filter(w => keys.includes(parseWorkoutDate(w.date).toDateString()))
-        .reduce((sum, w) => sum + getMetricValue(w.metrics, '🔥'), 0);
-    };
-
-    const lastTotal = calcTotal(last7);
-    const prevTotal = calcTotal(prev7);
-
-    if (prevTotal === 0) return { percent: 0, isPositive: true };
-    const percent = Math.round(((lastTotal - prevTotal) / prevTotal) * 100);
-    return { percent: Math.abs(percent), isPositive: percent >= 0 };
-  }, [workouts]);
-
-  // ✅ 3. КАТЕГОРИИ (Типы тренировок)
-  const categories = useMemo(() => {
-    const types = {};
-    workouts.forEach(w => {
-      const dur = getMetricValue(w.metrics, '⏱️');
-      types[w.type] = (types[w.type] || 0) + dur;
-    });
-
-    const totalMin = Object.values(types).reduce((a, b) => a + b, 0);
-    
-    return Object.keys(types).map(type => ({
-      type,
-      minutes: types[type],
-      percent: totalMin > 0 ? Math.round((types[type] / totalMin) * 100) : 0,
-      color: type === 'Пробежка' ? '#0A84FF' : type === 'Силовая' ? '#FF453A' : '#FFD60A',
-    }));
-  }, [workouts]);
-
-  // ✅ 4. AI ИНСАЙТЫ (умные подсказки)
-  const insights = useMemo(() => {
-    const result = [];
-    
-    // Инсайт 1: Стрик
-    const today = new Date();
-    let streak = 0;
-    for (let i = 0; i < 10; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-      if (workouts.some(w => w.date === dateStr)) streak++;
-      else break;
-    }
-
-    if (streak >= 5) {
-      result.push({
-        icon: Award,
-        color: '#FFD60A',
-        title: `Серия ${streak} дней! 🔥`,
-        text: 'Отличная регулярность! Ты входишь в топ 5% пользователей по дисциплине.',
-      });
-    }
-
-    // Инсайт 2: Если тренд положительный
-    if (trend.isPositive && trend.percent > 10) {
-      result.push({
-        icon: Zap,
-        color: '#32d74b',
-        title: 'Отличный прогресс!',
-        text: `Твоя активность выросла на ${trend.percent}% за эту неделю. Продолжай в том же духе!`,
-      });
-    }
-
-    // Инсайт 3: Если много тренировок подряд (нужен отдых)
-    const last3Days = [];
-    for (let i = 0; i < 3; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      last3Days.push(d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }));
-    }
-    const recentWorkouts = workouts.filter(w => last3Days.includes(w.date));
-    const recentIntensity = recentWorkouts.reduce((sum, w) => sum + getMetricValue(w.metrics, '🔥'), 0);
-
-    if (recentWorkouts.length >= 3 && recentIntensity > 1000) {
-      result.push({
-        icon: AlertCircle,
-        color: '#FF453A',
-        title: 'Нужен отдых',
-        text: 'Высокая нагрузка 3 дня подряд. Рекомендуем день активного восстановления (йога, прогулка).',
-      });
-    }
-
-    // Заглушка если пусто
-    if (result.length === 0) {
-      result.push({
-        icon: Calendar,
-        color: '#0A84FF',
-        title: 'Добавьте больше тренировок',
-        text: 'Чем больше данных, тем точнее анализ и рекомендации.',
-      });
-    }
-
-    return result;
-  }, [workouts, trend]);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
          <Text style={styles.headerTitle}>Статистика</Text>
-         
-         {/* Переключатель периодов */}
          <View style={styles.segmentControl}>
-             {['Неделя', 'Месяц', 'Год'].map(p => (
+             {['Неделя', 'Месяц'].map(p => (
                  <TouchableOpacity 
                     key={p} 
                     style={[styles.segment, period === p && styles.activeSegment]}
@@ -209,84 +142,75 @@ export default function StatisticsScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
          
-         {/* ГЛАВНЫЙ ГРАФИК */}
+         {/* 🎯 ОЦЕНКА ЗДОРОВЬЯ */}
+         <View style={styles.scoreContainer}>
+            <View style={[styles.scoreCircle, { borderColor: analysisData.scoreInfo.color }]}>
+               <Text style={styles.scoreNumber}>{analysisData.healthScore}</Text>
+               <Text style={styles.scoreLabel}>баллов</Text>
+            </View>
+            <View style={styles.scoreTextContainer}>
+               <Text style={[styles.scoreTitle, { color: analysisData.scoreInfo.color }]}>
+                  {analysisData.scoreInfo.level}
+               </Text>
+               <Text style={styles.scoreSubtitle}>{analysisData.scoreInfo.text}</Text>
+            </View>
+         </View>
+
+         {/* 📊 ГРАФИК */}
          <View style={styles.chartCard}>
              <View style={styles.chartHeader}>
                  <View>
-                     <Text style={styles.chartTitle}>Активность</Text>
-                     <Text style={styles.chartSubtitle}>
-                       {chartStats.totalCal.toLocaleString()} ккал
-                     </Text>
-                 </View>
-                 <View style={[styles.trendBadge, !trend.isPositive && { backgroundColor: 'rgba(255, 69, 58, 0.1)' }]}>
-                     {trend.isPositive ? <TrendingUp size={16} color="#32d74b" /> : <TrendingDown size={16} color="#FF453A" />}
-                     <Text style={[styles.trendText, !trend.isPositive && { color: '#FF453A' }]}>
-                       {trend.isPositive ? '+' : '-'}{trend.percent}%
-                     </Text>
+                     <Text style={styles.chartTitle}>Сожжено калорий</Text>
+                     <Text style={styles.chartSubtitle}>{chartStats.totalCal.toLocaleString()} ккал</Text>
                  </View>
              </View>
              
              <View style={{ marginTop: 20 }}>
                 <BarChart 
                     data={chartStats.barData} 
-                    barWidth={period === 'Месяц' ? 8 : 22} 
-                    noOfSections={3} 
+                    disableScroll={true} 
+                    barWidth={period === 'Месяц' ? 50 : 22} 
+                    noOfSections={3} // 3 линии сетки
+                    maxValue={chartStats.maxValue === 0 ? 1000 : undefined} // Если пусто, ставим шкалу 1000
                     barBorderRadius={4} 
                     yAxisThickness={0} 
                     xAxisThickness={0} 
-                    height={180}
+                    height={150}
                     width={width - 80}
-                    yAxisTextStyle={{ color: '#8E8E93' }}
-                    xAxisLabelTextStyle={{ color: '#8E8E93', fontSize: period === 'Месяц' ? 9 : 12 }}
+                    // Прячем шкалу Y, если данных нет
+                    yAxisTextStyle={{ color: 'gray', fontSize: 10 }}
+                    xAxisLabelTextStyle={{ color: 'gray', fontSize: 12 }}
                     hideRules
-                    spacing={period === 'Месяц' ? 4 : undefined}
+                    isAnimated
+                    animationDuration={500} // Сделали анимацию быстрее (0.5 сек)
+                    initialSpacing={10} 
                 />
              </View>
          </View>
 
-         {/* AI ИНСАЙТЫ */}
-         <Text style={styles.sectionTitle}>Анализ тренера</Text>
+         {/* 🤖 СОВЕТЫ ТРЕНЕРА */}
+         <Text style={styles.sectionTitle}>Тренер рекомендует</Text>
          
-         {insights.map((insight, i) => {
-           const Icon = insight.icon;
-           return (
+         {analysisData.advices.map((advice, i) => (
              <View key={i} style={styles.insightCard}>
-                 <View style={[styles.iconBox, { backgroundColor: `${insight.color}20` }]}>
-                     <Icon size={24} color={insight.color} />
+                 <View style={styles.iconBox}>
+                     {renderAdviceIcon(advice.type)}
                  </View>
                  <View style={styles.insightContent}>
-                     <Text style={styles.insightTitle}>{insight.title}</Text>
-                     <Text style={styles.insightText}>{insight.text}</Text>
+                     <Text style={styles.insightTitle}>{advice.title}</Text>
+                     <Text style={styles.insightText}>{advice.text}</Text>
                  </View>
              </View>
-           );
-         })}
+         ))}
 
-         {/* КАТЕГОРИИ */}
-         {categories.length > 0 && (
-           <>
-             <Text style={styles.sectionTitle}>Категории</Text>
-             <View style={styles.categoriesGrid}>
-                 {categories.slice(0, 2).map((cat, i) => (
-                   <View key={i} style={styles.catCard}>
-                       <Text style={styles.catValue}>
-                         {Math.floor(cat.minutes / 60)}ч {cat.minutes % 60}м
-                       </Text>
-                       <Text style={styles.catLabel}>{cat.type}</Text>
-                       <View style={[styles.catBar, { width: `${cat.percent}%`, backgroundColor: cat.color }]} />
-                   </View>
-                 ))}
-             </View>
-           </>
-         )}
-
-         {/* Кнопка отчета */}
-         <TouchableOpacity style={styles.reportButton}>
-             <Text style={styles.reportText}>Сгенерировать отчет за {period.toLowerCase()}</Text>
-             <ArrowRight size={20} color="#0A84FF" />
-         </TouchableOpacity>
-         
-         <View style={{ height: 40 }} />
+         {/* 💬 МОТИВАЦИЯ */}
+         <LinearGradient
+            colors={['#1C1C1E', '#2C2C2E']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.quoteCard}
+         >
+            <Text style={styles.quoteText}>"{analysisData.quote}"</Text>
+         </LinearGradient>
 
       </ScrollView>
     </SafeAreaView>
@@ -294,7 +218,7 @@ export default function StatisticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1, backgroundColor: colors.background || '#000' },
   header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10 },
   headerTitle: { fontSize: 32, fontFamily: 'Inter_700Bold', color: 'white', marginBottom: 15 },
   
@@ -304,28 +228,34 @@ const styles = StyleSheet.create({
   segmentText: { color: '#8E8E93', fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   activeSegmentText: { color: 'white' },
 
-  content: { paddingHorizontal: 20, paddingTop: 20 },
+  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
 
+  // Стили для оценки здоровья
+  scoreContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 20, borderRadius: 24, marginBottom: 20, gap: 20 },
+  scoreCircle: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, justifyContent: 'center', alignItems: 'center' },
+  scoreNumber: { color: 'white', fontSize: 24, fontFamily: 'Inter_800ExtraBold' },
+  scoreLabel: { color: '#8E8E93', fontSize: 10, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase' },
+  scoreTextContainer: { flex: 1 },
+  scoreTitle: { fontSize: 20, fontFamily: 'Inter_800ExtraBold', marginBottom: 4 },
+  scoreSubtitle: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
+
+  // Стили для графика
   chartCard: { backgroundColor: '#1C1C1E', borderRadius: 24, padding: 20, marginBottom: 30 },
   chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   chartTitle: { color: '#8E8E93', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   chartSubtitle: { color: 'white', fontSize: 22, fontFamily: 'Inter_700Bold', marginTop: 4 },
-  trendBadge: { flexDirection: 'row', backgroundColor: 'rgba(50, 215, 75, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignItems: 'center', gap: 4 },
-  trendText: { color: '#32d74b', fontSize: 12, fontFamily: 'Inter_700Bold' },
+  topLabelText: { color: '#CCFF00', fontSize: 10, fontFamily: 'Inter_600SemiBold', marginBottom: 4, textAlign: 'center', width: 40, marginLeft: -10 },
 
   sectionTitle: { color: 'white', fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 15 },
+  
+  // Стили для карточек тренера
   insightCard: { flexDirection: 'row', backgroundColor: '#1C1C1E', borderRadius: 20, padding: 16, marginBottom: 12, gap: 15 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  iconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center' },
   insightContent: { flex: 1 },
-  insightTitle: { color: 'white', fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 4 },
+  insightTitle: { color: 'white', fontSize: 15, fontFamily: 'Inter_700Bold', marginBottom: 4 },
   insightText: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
 
-  categoriesGrid: { flexDirection: 'row', gap: 12, marginBottom: 30 },
-  catCard: { flex: 1, backgroundColor: '#1C1C1E', borderRadius: 16, padding: 16 },
-  catValue: { color: 'white', fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  catLabel: { color: '#8E8E93', fontSize: 12, marginBottom: 10 },
-  catBar: { height: 4, borderRadius: 2 },
-
-  reportButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#0A84FF', marginBottom: 20 },
-  reportText: { color: '#0A84FF', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  // Цитата
+  quoteCard: { borderRadius: 20, padding: 20, marginTop: 10, borderWidth: 1, borderColor: '#333' },
+  quoteText: { color: 'white', fontSize: 15, fontFamily: 'Inter_600SemiBold', fontStyle: 'italic', textAlign: 'center', lineHeight: 22 },
 });
