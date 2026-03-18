@@ -1,16 +1,18 @@
-import React, { useMemo, useEffect, useState } from 'react';
+// src/screens/HomeScreen.js
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CircleUser, Play, Footprints, Flame, Clock, Dumbbell, Wind, Bike } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { useUserStore } from '../store/userStore';
 
 import StatsCard from '../components/StatsCard';
 import colors from '../constants/colors';
 import { useWorkoutStore } from '../store/workoutStore';
 import { getDailyStats, calculateProgress, getMetricValue } from '../utils/statsCalculator';
-import { getStepsForToday, watchStepCount, requestStepPermissions } from '../utils/stepCounter';
+
+// ✅ НОВЫЙ ИМПОРТ (единый источник правды для шагов)
+import { usePedometer } from '../hooks/usePedometer';
 
 // Конфиг иконок и подзаголовков для каждого типа тренировки
 const TYPE_CONFIG = {
@@ -46,9 +48,10 @@ export default function HomeScreen({ navigation }) {
   const workouts = useWorkoutStore(s => s.workouts);
   const user = useUserStore(state => state.user);
   const firstName = user.name ? user.name.split(' ')[0] : 'Гость';
-  const [liveSteps, setLiveSteps] = useState(0);
-  const [stepsLoaded, setStepsLoaded] = useState(false);
-  
+
+  // ✅ ПОЛУЧАЕМ ШАГИ ИЗ ХУКА
+  const { steps: liveSteps, isAvailable } = usePedometer();
+
   const dailyStats = useMemo(() => getDailyStats(workouts), [workouts]);
 
   const today = new Date();
@@ -57,66 +60,14 @@ export default function HomeScreen({ navigation }) {
 
   const goals = { steps: 11000, distance: 12.3, calories: 600, duration: 80 };
 
-  // ✅ ИНИЦИАЛИЗАЦИЯ ДАТЧИКА ШАГОВ
-  useEffect(() => {
-    let subscription = null;
-
-    const initStepCounter = async () => {
-      try {
-        const hasPermission = await requestStepPermissions();
-        if (!hasPermission) {
-          setStepsLoaded(true);
-          return;
-        }
-
-        // initial value (на Android будет сохранённое число)
-        const stepsToday = await getStepsForToday();
-        setLiveSteps(stepsToday);
-        setStepsLoaded(true);
-
-        subscription = await watchStepCount((steps) => {
-          setLiveSteps(steps);
-        });
-      } catch (error) {
-        console.error('Ошибка инициализации шагов:', error);
-        setStepsLoaded(true);
-      }
-    };
-
-    initStepCounter();
-
-    return () => {
-      if (subscription && subscription.remove) {
-        subscription.remove();
-      }
-    };
-  }, []);
-
-  // ✅ ОБНОВЛЯЕМ ШАГИ ПРИ ФОКУСЕ НА ЭКРАН
-  useFocusEffect(
-    React.useCallback(() => {
-      // на Android заново читать не нужно – подписка уже ведёт подсчёт,
-      // но можно обновить из хранилища на всякий случай
-      const updateSteps = async () => {
-        try {
-          const stepsToday = await getStepsForToday();
-          setLiveSteps(stepsToday);
-        } catch (error) {
-          console.error('Ошибка при обновлении шагов:', error);
-        }
-      };
-      updateSteps();
-    }, [])
-  );
-
   const formatDuration = (m) => {
     if (!m) return '0м';
     if (m < 60) return `${m}м`;
     return `${Math.floor(m / 60)}ч ${m % 60}м`;
   };
 
-  // ✅ ИСПОЛЬЗУЕМ РЕАЛЬНЫЕ ШАГИ ИЗ ДАТЧИКА, ЕСЛИ ЗАГРУЖЕНЫ
-  const displaySteps = stepsLoaded && liveSteps > 0 ? liveSteps : dailyStats.steps;
+  // ✅ ОПРЕДЕЛЯЕМ ШАГИ ДЛЯ ОТОБРАЖЕНИЯ (датчик ИЛИ тренировки)
+  const displaySteps = isAvailable ? liveSteps : dailyStats.steps;
 
   // ✅ ВЫЧИСЛЯЕМ ПОПУЛЯРНЫЕ ПРОГРАММЫ ИЗ ИСТОРИИ
   const topPrograms = useMemo(() => {
@@ -194,13 +145,13 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.header}>
           <View>
             <Text style={styles.date}>{formattedDate}</Text>
-             <Text style={styles.greeting}>Привет, {firstName}</Text>
+            <Text style={styles.greeting}>Привет, {firstName}</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Настройки')} style={styles.avatarContainer}>
             {user.avatar ? (
-              <Image 
-                source={{ uri: user.avatar }} 
-                style={{ width: 32, height: 32, borderRadius: 16 }} 
+              <Image
+                source={{ uri: user.avatar }}
+                style={{ width: 32, height: 32, borderRadius: 16 }}
               />
             ) : (
               <CircleUser color="#E5E5EA" size={32} />

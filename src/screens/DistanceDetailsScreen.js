@@ -1,46 +1,24 @@
-import React, { useMemo } from 'react';
+// src/screens/DistanceDetailsScreen.js
+import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
 import { ArrowLeft, Map, Timer, TrendingUp } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import DetailsChart from '../components/DetailsChart'; 
 import colors from '../constants/colors';
-import generateFullDayData from '../utils/chartUtils';
-import { useWorkoutStore } from '../store/workoutStore';
-import { getMetricValue, isToday } from '../utils/statsCalculator';
+import { useDistanceStats } from '../hooks/useDistanceStats';
 
 export default function DistanceDetailsScreen({ navigation }) {
-  const workouts = useWorkoutStore(s => s.workouts);
+  const stats = useDistanceStats();
 
-  const stats = useMemo(() => {
-    const todayWorkouts = workouts.filter(w => isToday(w.date));
-    let totalDist = 0;
-    const hoursMap = new Array(24).fill(0);
-    let maxDist = 0;
-
-    todayWorkouts.forEach(w => {
-      const d = getMetricValue(w.metrics, '📍');
-      totalDist += d;
-      if (d > maxDist) maxDist = d;
-
-      let h = 12;
-      if (w.startTime) {
-        h = new Date(w.startTime).getHours();
-      }
-      if (h >= 0 && h <= 23) {
-        hoursMap[h] += d;
-      }
-    });
-
-    const chartRaw = hoursMap.map((val, i) => ({ value: val, label: i }));
-    const avgPace = totalDist > 0 ? "5'30\"" : "-";
-
-    return { totalDist, maxDist, chartRaw, avgPace };
-  }, [workouts]);
-
-  const goalDistance = 12.3;
-  const progressPercent = Math.min((stats.totalDist / goalDistance) * 100, 100);
-  const chartData = generateFullDayData(stats.chartRaw);
+  const {
+    totalDist,
+    maxDist,
+    avgPace,
+    chartData,
+    progressPercent,
+    goalDistance,
+  } = stats;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -56,70 +34,70 @@ export default function DistanceDetailsScreen({ navigation }) {
 
         <View style={styles.heroSection}>
           <View style={styles.distanceValueRow}>
-             <Text style={styles.heroValue}>{stats.totalDist.toFixed(1)}</Text>
-             <Text style={styles.heroUnit}>км</Text>
+            <Text style={styles.heroValue}>{totalDist.toFixed(1)}</Text>
+            <Text style={styles.heroUnit}>км</Text>
           </View>
           <Text style={styles.heroSubtitle}>Цель: {goalDistance} км</Text>
           <View style={styles.progressBarBg}>
             <LinearGradient
-               colors={['#0A84FF', '#5AC8FA']}
-               start={{x: 0, y: 0}} end={{x: 1, y: 0}}
-               style={[styles.progressBarFill, { width: `${progressPercent}%` }]}
+              colors={['#0A84FF', '#5AC8FA']}
+              start={{x: 0, y: 0}} end={{x: 1, y: 0}}
+              style={[styles.progressBarFill, { width: `${progressPercent}%` }]}
             />
           </View>
         </View>
 
         <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(50, 215, 75, 0.15)' }]}>
-                    <Timer size={24} color="#32d74b" />
-                </View>
-                <View>
-                    <Text style={styles.statValue}>{stats.avgPace}</Text>
-                    <Text style={styles.statLabel}>Средний темп</Text>
-                </View>
+          <View style={styles.statCard}>
+            <View style={[styles.iconBox, { backgroundColor: 'rgba(50, 215, 75, 0.15)' }]}>
+              <Timer size={24} color="#32d74b" />
             </View>
+            <View>
+              <Text style={styles.statValue}>{avgPace}</Text>
+              <Text style={styles.statLabel}>Средний темп</Text>
+            </View>
+          </View>
 
-            <View style={styles.statCard}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(255, 69, 58, 0.15)' }]}>
-                    <TrendingUp size={24} color="#FF453A" />
-                </View>
-                <View>
-                    <Text style={styles.statValue}>{stats.maxDist.toFixed(1)} км</Text>
-                    <Text style={styles.statLabel}>Максимум</Text>
-                </View>
+          <View style={styles.statCard}>
+            <View style={[styles.iconBox, { backgroundColor: 'rgba(255, 69, 58, 0.15)' }]}>
+              <TrendingUp size={24} color="#FF453A" />
             </View>
+            <View>
+              <Text style={styles.statValue}>{maxDist.toFixed(1)} км</Text>
+              <Text style={styles.statLabel}>Максимум</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.chartWrapper}>
-            <DetailsChart 
-              data={chartData}
-              title="Динамика по часам"
-              color="#0A84FF"
-              yAxisSuffix=" км" 
-              type="line" 
-            />
+          <DetailsChart 
+            data={chartData}
+            title="Динамика по часам"
+            color="#0A84FF"
+            yAxisSuffix=" км" 
+            type="line" 
+          />
         </View>
 
         <View style={styles.routeCard}>
-            <View style={styles.routeHeader}>
-                <View style={styles.routeIconBg}>
-                    <Map size={24} color="#0A84FF" />
-                </View>
-                <View>
-                    <Text style={styles.routeTitle}>Москва — Питер</Text>
-                    <Text style={styles.routeSubtitle}>
-                      Вы прошли {Math.round(stats.totalDist)} из 700 км
-                    </Text>
-                </View>
+          <View style={styles.routeHeader}>
+            <View style={styles.routeIconBg}>
+              <Map size={24} color="#0A84FF" />
             </View>
-            <View style={styles.mapVisual}>
-                <View style={styles.mapLine} />
-                <View style={[styles.mapDot, { left: `${Math.min(stats.totalDist/7, 100)}%`, backgroundColor: '#0A84FF' }]} />
-                <View style={{ position: 'absolute', left: `${Math.min(stats.totalDist/7, 100)}%`, top: 25, transform: [{translateX: -15}] }}>
-                     <Text style={styles.youAreHereText}>Вы здесь</Text>
-                </View>
+            <View>
+              <Text style={styles.routeTitle}>Москва — Питер</Text>
+              <Text style={styles.routeSubtitle}>
+                Вы прошли {Math.round(totalDist)} из 700 км
+              </Text>
             </View>
+          </View>
+          <View style={styles.mapVisual}>
+            <View style={styles.mapLine} />
+            <View style={[styles.mapDot, { left: `${Math.min(totalDist/7, 100)}%`, backgroundColor: '#0A84FF' }]} />
+            <View style={{ position: 'absolute', left: `${Math.min(totalDist/7, 100)}%`, top: 25, transform: [{translateX: -15}] }}>
+              <Text style={styles.youAreHereText}>Вы здесь</Text>
+            </View>
+          </View>
         </View>
 
       </ScrollView>

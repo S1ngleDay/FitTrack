@@ -5,14 +5,31 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "backgroundModes": ["location"]
+      },
+      "ios": {
+        "backgroundModes": ["background-fetch", "background-processing"]
+      }
     },
     "preview": {
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "backgroundModes": ["location"]
+      },
+      "ios": {
+        "backgroundModes": ["background-fetch", "background-processing"]
       }
     },
-    "production": {}
+    "production": {
+      "android": {
+        "backgroundModes": ["location"]
+      },
+      "ios": {
+        "backgroundModes": ["background-fetch", "background-processing"]
+      }
+    }
   },
   "submit": {
     "production": {}

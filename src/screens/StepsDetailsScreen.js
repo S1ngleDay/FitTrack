@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+// src/screens/StepsDetailsScreen.js
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Footprints, MapPin, Flame, Trophy } from 'lucide-react-native';
@@ -7,52 +8,12 @@ import { PieChart } from 'react-native-gifted-charts';
 
 import DetailsChart from '../components/DetailsChart';
 import colors from '../constants/colors';
-import generateFullDayData from '../utils/chartUtils';
-import { useWorkoutStore } from '../store/workoutStore';
-import { getMetricValue, isToday } from '../utils/statsCalculator';
-import { usePedometer } from '../hooks/usePedometer';
-import { useHourlySteps } from '../hooks/useHourlySteps';
+import { useStepsStats } from '../hooks/useStepsStats';
 
 export default function StepsDetailsScreen({ navigation }) {
-  const workouts = useWorkoutStore(s => s.workouts);
-  const sensorSteps = usePedometer() || 0;
-  const hourly = useHourlySteps() || new Array(24).fill(0);
+  const stats = useStepsStats();
 
-  const stats = useMemo(() => {
-    const todayWorkouts = workouts.filter(w => isToday(w.date));
-
-    let distance = 0;
-    let calories = 0;
-    todayWorkouts.forEach(w => {
-      distance += getMetricValue(w.metrics, '📍') || 0;
-      calories += getMetricValue(w.metrics, '🔥') || 0;
-    });
-
-    const chartRaw = hourly.map((val, i) => ({ value: val, label: i }));
-
-    return {
-      steps: sensorSteps,
-      distance,
-      calories,
-      chartRaw,
-    };
-  }, [workouts, sensorSteps, hourly]);
-
-  const stepGoal = 11000;
-  const remaining = Math.max(0, stepGoal - (stats.steps || 0));
-
-  const pieData = [
-    { value: stats.steps || 1, color: '#32d74b', focused: true },
-    { value: remaining, color: '#2C2C2E' },
-  ];
-
-  const chartData = generateFullDayData(stats.chartRaw);
-
-  const isLoading =
-    (!hourly || hourly.length === 0) &&
-    (stats.steps === 0 || stats.steps == null);
-
-  if (isLoading) {
+  if (stats.isLoading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
@@ -62,6 +23,15 @@ export default function StepsDetailsScreen({ navigation }) {
       </SafeAreaView>
     );
   }
+
+  const {
+    steps,
+    distance,
+    calories,
+    chartData,
+    pieData,
+    stepGoal,
+  } = stats;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -90,7 +60,7 @@ export default function StepsDetailsScreen({ navigation }) {
               <View style={{ alignItems: 'center' }}>
                 <Footprints size={28} color="#32d74b" style={{ marginBottom: 4 }} />
                 <Text style={styles.heroValue}>
-                  {(stats.steps || 0).toLocaleString('ru-RU')}
+                  {steps.toLocaleString('ru-RU')}
                 </Text>
                 <Text style={styles.heroLabel}>
                   из {stepGoal.toLocaleString('ru-RU')}
@@ -113,7 +83,7 @@ export default function StepsDetailsScreen({ navigation }) {
             </View>
             <View>
               <Text style={styles.statValue}>
-                {stats.distance.toFixed(1)} км
+                {distance.toFixed(1)} км
               </Text>
               <Text style={styles.statLabel}>Дистанция</Text>
             </View>
@@ -129,7 +99,7 @@ export default function StepsDetailsScreen({ navigation }) {
               <Flame size={24} color="#FF9F0A" />
             </View>
             <View>
-              <Text style={styles.statValue}>{stats.calories} ккал</Text>
+              <Text style={styles.statValue}>{calories} ккал</Text>
               <Text style={styles.statLabel}>Сожжено</Text>
             </View>
           </View>
@@ -157,8 +127,7 @@ export default function StepsDetailsScreen({ navigation }) {
             <View style={{ flex: 1 }}>
               <Text style={styles.funFactTitle}>Отличный темп! ⚡</Text>
               <Text style={styles.funFactText}>
-                Вы сделали{' '}
-                {stats.steps.toLocaleString('ru-RU')} шагов сегодня.
+                Вы сделали {steps.toLocaleString('ru-RU')} шагов сегодня.
               </Text>
             </View>
             <View style={styles.trophyBox}>

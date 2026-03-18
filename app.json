@@ -16,11 +16,12 @@
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
-          "location",
-          "fetch",
-          "location",
-          "fetch"
-        ]
+          "background-fetch",
+          "background-processing",
+          "location"
+        ],
+        "NSMotionUsageDescription": "Приложение использует шагомер для подсчёта шагов в фоновом режиме",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Трекинг активности в фоне"
       },
       "bundleIdentifier": "com.anonymous.FitTrack"
     },
@@ -38,7 +39,8 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_LOCATION"
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.WAKE_LOCK"
       ]
     },
     "web": {
@@ -58,6 +60,12 @@
           "locationAlwaysPermission": "Разрешите доступ в фоне, чтобы трек не прерывался.",
           "locationWhenInUsePermission": "Разрешите доступ к GPS для отображения маршрута на карте.",
           "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-task-manager",
+        {
+          "tasks": ["STEP-COUNTER-TASK"]
         }
       ]
     ],

@@ -32,6 +32,7 @@ export const getMetricValue = (metrics, icon) => {
 };
 
 // Расчет статистики за день
+// src/utils/statsCalculator.js — обновлённая функция
 export const getDailyStats = (workouts) => {
   const todayWorkouts = workouts.filter(w => isToday(w.date));
   let steps = 0;
@@ -40,10 +41,12 @@ export const getDailyStats = (workouts) => {
   let duration = 0;
 
   todayWorkouts.forEach(w => {
-    steps += getMetricValue(w.metrics, '👣');
-    distance += getMetricValue(w.metrics, '📍');
-    calories += getMetricValue(w.metrics, '🔥');
-    duration += getMetricValue(w.metrics, '⏱️');
+    // ✅ ШАГИ: 👣 ИЛИ "шагов" (fallback)
+    steps += getMetricValue(w.metrics, '👣') || getMetricValue(w.metrics, 'шагов') || 0;
+    
+    distance += getMetricValue(w.metrics, '📍') || getMetricValue(w.metrics, 'км') || 0;
+    calories += getMetricValue(w.metrics, '🔥') || getMetricValue(w.metrics, 'ккал') || 0;
+    duration += getMetricValue(w.metrics, '⏱️') || getMetricValue(w.metrics, 'мин') || 0;
   });
 
   return {
@@ -53,6 +56,7 @@ export const getDailyStats = (workouts) => {
     duration: Math.round(duration),
   };
 };
+
 
 // Прогресс (0..1)
 export const calculateProgress = (current, goal) => {

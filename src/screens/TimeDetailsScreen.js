@@ -1,129 +1,36 @@
-import React, { useMemo } from 'react';
+// src/screens/TimeDetailsScreen.js
+import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { ArrowLeft, Clock, CalendarCheck, Moon, Sun, Flame } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-
-import DetailsChart from '../components/DetailsChart'; 
+import DetailsChart from '../components/DetailsChart';
 import colors from '../constants/colors';
-import generateFullDayData from '../utils/chartUtils';
-import { useWorkoutStore } from '../store/workoutStore';
-import { getMetricValue, isToday } from '../utils/statsCalculator';
+import { useWorkoutStats } from '../hooks/useWorkoutStats';
 
 const { width } = Dimensions.get('window');
 
 export default function TimeDetailsScreen({ navigation }) {
-  const workouts = useWorkoutStore(s => s.workouts);
+  // ✅ derived state: stats + heatmap
+  const stats = useWorkoutStats();
 
-  // ✅ 1. Основная статистика и данные для графика
-  const stats = useMemo(() => {
-    // Фильтруем тренировки за сегодня
-    const todayWorkouts = workouts.filter(w => isToday(w.date));
-    
-    let totalMin = 0;
-    
-    // Создаем массив из 24 нулей (для каждого часа)
-    const hoursMap = new Array(24).fill(0);
+  // Пока данные не готовы
+  if (!stats) return null;
 
-    // Заполняем данными
-    todayWorkouts.forEach(w => {
-      const duration = getMetricValue(w.metrics, '⏱️');
-      totalMin += duration;
+  const { totalMin, h, m, streak, chartRaw, heatmapData } = stats;
 
-      // Определяем час старта. Если нет startTime, кидаем в 12:00
-      let hour = 12;
-      if (w.startTime) {
-        hour = new Date(w.startTime).getHours();
-      }
-      
-      // Суммируем минуты в этот час
-      if (hour >= 0 && hour <= 23) {
-        hoursMap[hour] += duration;
-      }
-    });
+  const chartData = chartRaw; // Если нужен generateFullDayData, вызови внутри useWorkoutStats
 
-    // Преобразуем в формат для графика: [{ value: 0, label: '0:00' }, ...]
-    const chartRaw = hoursMap.map((val, i) => ({
-      value: val,
-      label: `${i}:00` // Формат "13:00"
-    }));
-
-    // Часы и минуты для отображения
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-
-    // --- РАСЧЕТ СТРИКА (Серия дней) ---
-    let streak = 0;
-    let checkDate = new Date();
-    
-    // Бесконечный цикл проверки назад (максимум 365 дней)
-    for (let i = 0; i < 365; i++) {
-        const dateStr = checkDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-        const hasWorkout = workouts.some(w => w.date === dateStr);
-
-        if (hasWorkout) {
-            streak++;
-            checkDate.setDate(checkDate.getDate() - 1); // Идем на день назад
-        } else {
-            // Если сегодня нет тренировки, это не прерывает стрик (если была вчера)
-            const isCheckToday = checkDate.toDateString() === new Date().toDateString();
-            if (isCheckToday && streak === 0) {
-                 checkDate.setDate(checkDate.getDate() - 1);
-                 continue; 
-            }
-            break; // Серия прервалась
-        }
-    }
-
-    return { totalMin, h, m, streak, chartRaw };
-  }, [workouts]);
-
-  // ✅ 2. Данные для Heatmap (Последние 28 дней)
-  const heatmapData = useMemo(() => {
-    const days = [];
-    const today = new Date();
-    
-    // Начинаем с даты "27 дней назад"
-    const startDate = new Date();
-    startDate.setDate(today.getDate() - 27);
-
-    for (let i = 0; i < 28; i++) {
-        const d = new Date(startDate);
-        d.setDate(startDate.getDate() + i); // startDate + i дней
-        
-        const dateStr = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-        
-        // Ищем тренировки в этот день
-        const dayWorkouts = workouts.filter(w => w.date === dateStr);
-        
-        if (dayWorkouts.length === 0) {
-            days.push(0); // ⬛ Нет активности
-        } else {
-            // Считаем общее время
-            let dayMins = 0;
-            dayWorkouts.forEach(w => dayMins += getMetricValue(w.metrics, '⏱️'));
-            
-            if (dayMins > 45) days.push(2); // 🟪 Много
-            else days.push(1); // ⬜ Мало
-        }
-    }
-    return days;
-  }, [workouts]);
-
-  // Генерируем данные для графика (используем chartRaw, который мы подготовили выше)
-  const chartData = generateFullDayData(stats.chartRaw);
-
-  // Рендер квадратика Heatmap
   const renderHeatmapItem = (level, index) => {
-      let bg = '#2C2C2E'; 
-      if (level === 1) bg = 'rgba(191, 90, 242, 0.4)'; 
-      if (level === 2) bg = '#BF5AF2'; 
-      return <View key={index} style={[styles.heatmapBox, { backgroundColor: bg }]} />;
+    let bg = '#2C2C2E';
+    if (level === 1) bg = 'rgba(191, 90, 242, 0.4)';
+    if (level === 2) bg = '#BF5AF2';
+    return <View key={index} style={[styles.heatmapBox, { backgroundColor: bg }]} />;
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
+
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -135,83 +42,83 @@ export default function TimeDetailsScreen({ navigation }) {
 
         {/* HERO: Время + Стрик */}
         <View style={styles.heroSection}>
-            <View style={styles.timeRow}>
-                <Text style={styles.heroValue}>{stats.h}</Text>
-                <Text style={styles.heroUnit}>ч</Text>
-                <Text style={styles.heroValue}>{stats.m}</Text>
-                <Text style={styles.heroUnit}>мин</Text>
-            </View>
-            <Text style={styles.heroSubtitle}>Активность сегодня</Text>
+          <View style={styles.timeRow}>
+            <Text style={styles.heroValue}>{h}</Text>
+            <Text style={styles.heroUnit}>ч</Text>
+            <Text style={styles.heroValue}>{m}</Text>
+            <Text style={styles.heroUnit}>мин</Text>
+          </View>
+          <Text style={styles.heroSubtitle}>Активность сегодня</Text>
 
-            <View style={styles.streakBadge}>
-                <Flame size={18} color="#FF9F0A" fill="#FF9F0A" />
-                <Text style={styles.streakText}>{stats.streak} дн. подряд!</Text>
-            </View>
+          <View style={styles.streakBadge}>
+            <Flame size={18} color="#FF9F0A" fill="#FF9F0A" />
+            <Text style={styles.streakText}>{streak} дн. подряд!</Text>
+          </View>
         </View>
 
         {/* HEATMAP */}
         <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <CalendarCheck size={20} color="#BF5AF2" />
-                <Text style={styles.cardTitle}>Ваша регулярность</Text>
-            </View>
-            <View style={styles.heatmapGrid}>
-                {heatmapData.map((level, i) => renderHeatmapItem(level, i))}
-            </View>
-            <Text style={styles.heatmapFooter}>Последние 4 недели</Text>
+          <View style={styles.cardHeader}>
+            <CalendarCheck size={20} color="#BF5AF2" />
+            <Text style={styles.cardTitle}>Ваша регулярность</Text>
+          </View>
+          <View style={styles.heatmapGrid}>
+            {heatmapData.map((level, i) => renderHeatmapItem(level, i))}
+          </View>
+          <Text style={styles.heatmapFooter}>Последние 4 недели</Text>
         </View>
-        
+
         {/* CHART */}
         <View style={styles.chartWrapper}>
-            <DetailsChart 
-              data={chartData}
-              title="Распределение нагрузки"
-              color="#BF5AF2"
-              yAxisSuffix=" мин" 
-              type="bar" 
-            />
+          <DetailsChart 
+            data={chartData}
+            title="Распределение нагрузки"
+            color="#BF5AF2"
+            yAxisSuffix=" мин"
+            type="bar"
+          />
         </View>
 
         {/* STATS ROW */}
         <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(255, 214, 10, 0.15)' }]}>
-                    <Sun size={24} color="#FFD60A" />
-                </View>
-                <View>
-                    <Text style={styles.statValue}>Утро</Text>
-                    <Text style={styles.statLabel}>Пик активности</Text>
-                </View>
+          <View style={styles.statCard}>
+            <View style={[styles.iconBox, { backgroundColor: 'rgba(255, 214, 10, 0.15)' }]}>
+              <Sun size={24} color="#FFD60A" />
             </View>
+            <View>
+              <Text style={styles.statValue}>Утро</Text>
+              <Text style={styles.statLabel}>Пик активности</Text>
+            </View>
+          </View>
 
-            <View style={styles.statCard}>
-                <View style={[styles.iconBox, { backgroundColor: 'rgba(10, 132, 255, 0.15)' }]}>
-                    <Clock size={24} color="#0A84FF" />
-                </View>
-                <View>
-                    <Text style={styles.statValue}>{Math.round(stats.totalMin * 7 / 60)} ч</Text>
-                    <Text style={styles.statLabel}>Прогноз на неделю</Text>
-                </View>
+          <View style={styles.statCard}>
+            <View style={[styles.iconBox, { backgroundColor: 'rgba(10, 132, 255, 0.15)' }]}>
+              <Clock size={24} color="#0A84FF" />
             </View>
+            <View>
+              <Text style={styles.statValue}>{Math.round(totalMin * 7 / 60)} ч</Text>
+              <Text style={styles.statLabel}>Прогноз на неделю</Text>
+            </View>
+          </View>
         </View>
 
         {/* MOTIVATION */}
         <LinearGradient
-            colors={['#BF5AF2', '#5E5CE6']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={styles.funFactCard}
+          colors={['#BF5AF2', '#5E5CE6']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={styles.funFactCard}
         >
-            <View style={styles.funFactContent}>
-                <View style={{flex: 1}}>
-                    <Text style={styles.funFactTitle}>Привычка формируется! 🧠</Text>
-                    <Text style={styles.funFactText}>
-                        Каждая минута тренировки продлевает жизнь на 7 минут. Вы накопили {stats.totalMin * 7} минут жизни!
-                    </Text>
-                </View>
-                <View style={styles.trophyBox}>
-                    <Moon size={28} color="white" />
-                </View>
+          <View style={styles.funFactContent}>
+            <View style={{flex: 1}}>
+              <Text style={styles.funFactTitle}>Привычка формируется! 🧠</Text>
+              <Text style={styles.funFactText}>
+                Каждая минута тренировки продлевает жизнь на 7 минут. Вы накопили {totalMin * 7} минут жизни!
+              </Text>
             </View>
+            <View style={styles.trophyBox}>
+              <Moon size={28} color="white" />
+            </View>
+          </View>
         </LinearGradient>
 
       </ScrollView>

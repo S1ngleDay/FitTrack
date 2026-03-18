@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+// src/screens/ActiveRunScreen.js
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Pause, Play, Check } from 'lucide-react-native';
@@ -7,7 +8,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useWorkoutStore } from '../store/workoutStore';
 import { useUserStore } from '../store/userStore'; 
 import { useRouteTracker } from '../hooks/useRouteTracker'; 
-import { watchStepCount, requestStepPermissions, getStepsForToday } from '../utils/stepCounter'; 
+// ✅ ИСПОЛЬЗУЕМ НАШ НОВЫЙ ХУК ВМЕСТО СТАРОГО ФАЙЛА
+import { usePedometer } from '../hooks/usePedometer'; 
 import colors from '../constants/colors';
 
 export default function ActiveRunScreen() {
@@ -20,6 +22,9 @@ export default function ActiveRunScreen() {
   const height = user?.height || 180;
 
   const { route, isTracking, startTracking, stopTracking } = useRouteTracker();
+  
+  // ✅ ПОЛУЧАЕМ ШАГИ ИЗ НАШЕГО ХУКА
+  const { steps: totalStepsToday, isAvailable: isPedometerAvailable } = usePedometer();
 
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -33,7 +38,6 @@ export default function ActiveRunScreen() {
   
   // Рефы для шагомера и троттлинга
   const initialStepsRef = useRef(null); 
-  const stepSubscriptionRef = useRef(null); 
   const lastUpdateTimeRef = useRef(0); // Время последнего обновления экрана
 
   // БИОМЕТРИЧЕСКИЕ КОНСТАНТЫ
@@ -45,49 +49,43 @@ export default function ActiveRunScreen() {
   // Коэффициент сжигания (бег чуть более энергозатратен на км, чем ходьба)
   const efficiencyFactor = isRun ? 1.05 : 1.0; 
 
-  // ИНИЦИАЛИЗАЦИЯ: Старт GPS и Шагомера
+  // ✅ ЛОГИКА ПОДСЧЕТА ШАГОВ В ТРЕНИРОВКЕ
+  useEffect(() => {
+      // Инициализируем начальное количество шагов при старте тренировки
+      if (isPedometerAvailable && initialStepsRef.current === null && totalStepsToday > 0) {
+          initialStepsRef.current = totalStepsToday;
+      }
+      
+      // Обновляем статистику тренировки, если педометр доступен и не на паузе
+      if (isPedometerAvailable && initialStepsRef.current !== null && !isPaused) {
+          const currentWorkoutSteps = Math.max(0, totalStepsToday - initialStepsRef.current);
+          
+           // ТРОТТЛИНГ: Обновляем стейт React не чаще 1 раза в 2 секунды (2000 мс)
+           const now = Date.now();
+           if (now - lastUpdateTimeRef.current >= 2000) {
+             const distanceKm = (currentWorkoutSteps * stepLengthM) / 1000;
+             const burnedCalories = weight * distanceKm * efficiencyFactor;
+             
+             setWorkoutSteps(currentWorkoutSteps);
+             setDistance(distanceKm);
+             setCalories(burnedCalories);
+             
+             lastUpdateTimeRef.current = now;
+           }
+      }
+  }, [totalStepsToday, isPaused, isPedometerAvailable]);
+
+  // ИНИЦИАЛИЗАЦИЯ: Старт GPS 
   useEffect(() => {
     const initTracking = async () => {
       if (activeWorkout && !isTracking && !isPaused) {
         await startTracking();
-        const isPedometerReady = await requestStepPermissions();
-        
-        if (isPedometerReady) {
-          const currentTotal = await getStepsForToday();
-          initialStepsRef.current = currentTotal;
-
-          stepSubscriptionRef.current = watchStepCount((totalStepsToday) => {
-            if (isPaused) return;
-
-            // Считаем сырые данные
-            const currentWorkoutSteps = totalStepsToday - (initialStepsRef.current || totalStepsToday);
-            
-            // ТРОТТЛИНГ: Обновляем стейт React не чаще 1 раза в 2 секунды (2000 мс)
-            const now = Date.now();
-            if (now - lastUpdateTimeRef.current >= 2000) {
-              
-              const distanceKm = (currentWorkoutSteps * stepLengthM) / 1000;
-              // Формула: Вес(кг) * Расстояние(км) * Коэффициент
-              const burnedCalories = weight * distanceKm * efficiencyFactor;
-
-              // Обновляем UI
-              setWorkoutSteps(currentWorkoutSteps);
-              setDistance(distanceKm);
-              setCalories(burnedCalories);
-              
-              lastUpdateTimeRef.current = now;
-            }
-          });
-        }
       }
     };
-
     initTracking();
-
-    return () => {
-      if (stepSubscriptionRef.current) stepSubscriptionRef.current.remove();
-    };
-  }, [activeWorkout, isPaused]); 
+    
+    // Cleanup GPS tracking is handled in stopTracking when finishing/canceling
+  }, [activeWorkout, isPaused, isTracking]);
 
 
   // ТАЙМЕР (Идет каждую секунду, но не вызывает тяжелых пересчетов)
@@ -125,7 +123,6 @@ export default function ActiveRunScreen() {
           onPress: async () => {
             if (timerRef.current) clearInterval(timerRef.current);
             await stopTracking(); 
-            if (stepSubscriptionRef.current) stepSubscriptionRef.current.remove();
             cancelWorkout();
             if (navigation.canGoBack()) navigation.goBack();
             else navigation.navigate('Home'); 
@@ -143,7 +140,6 @@ export default function ActiveRunScreen() {
 
     setIsPaused(true);
     if (timerRef.current) clearInterval(timerRef.current);
-    if (stepSubscriptionRef.current) stepSubscriptionRef.current.remove();
 
     const finalRoute = await stopTracking();
 
