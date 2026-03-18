@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Pause, Play, Check } from 'lucide-react-native';
@@ -7,10 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useWorkoutStore } from '../store/workoutStore';
 import { useUserStore } from '../store/userStore'; 
 import { useRouteTracker } from '../hooks/useRouteTracker'; 
-
-// 🔥 Импортируем твой шагомер
-import { watchStepCount, requestStepPermissions, getStepsForToday } from '../utils/stepCounter'; // Убедись, что путь к файлу верный
-
+import { watchStepCount, requestStepPermissions, getStepsForToday } from '../utils/stepCounter'; 
 import colors from '../constants/colors';
 
 export default function ActiveRunScreen() {
@@ -21,71 +18,66 @@ export default function ActiveRunScreen() {
   const user = useUserStore((s) => s.user);
   const weight = user?.weight || 80;
   const height = user?.height || 180;
-  const age = user?.age || 25;
-  const gender = user?.gender || 'male';
 
   const { route, isTracking, startTracking, stopTracking } = useRouteTracker();
 
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   
-  // Метрики тренировки
+  // Видимые на экране метрики
   const [workoutSteps, setWorkoutSteps] = useState(0); 
   const [distance, setDistance] = useState(0);
   const [calories, setCalories] = useState(0);
   
   const timerRef = useRef(null);
   
-  // Рефы для шагомера
-  const initialStepsRef = useRef(null); // Сколько шагов было на старте
-  const stepSubscriptionRef = useRef(null); // Подписка на сенсор
+  // Рефы для шагомера и троттлинга
+  const initialStepsRef = useRef(null); 
+  const stepSubscriptionRef = useRef(null); 
+  const lastUpdateTimeRef = useRef(0); // Время последнего обновления экрана
 
-  // ✅ БИОМЕТРИЧЕСКИЕ РАСЧЕТЫ
+  // БИОМЕТРИЧЕСКИЕ КОНСТАНТЫ
   const isRun = activeWorkout?.type?.includes('Пробежка') || activeWorkout?.type?.includes('Бег');
-
-  // Длина шага (в метрах)
-  const stepLengthMeters = gender === 'male' ? (height * 0.415) / 100 : (height * 0.413) / 100;
   
-  // Расчет BMR по Миффлину-Сан Жеору
-  let bmr = 0;
-  if (gender === 'male') {
-    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
-  } else {
-    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
-  }
+  // Длина шага в метрах
+  const stepLengthM = (height * 0.414) / 100;
   
-  // Базовые калории в секунду (для пассивного сжигания, когда стоим)
-  const baseCaloriesPerSecond = bmr / 24 / 3600;
+  // Коэффициент сжигания (бег чуть более энергозатратен на км, чем ходьба)
+  const efficiencyFactor = isRun ? 1.05 : 1.0; 
 
   // ИНИЦИАЛИЗАЦИЯ: Старт GPS и Шагомера
   useEffect(() => {
     const initTracking = async () => {
       if (activeWorkout && !isTracking && !isPaused) {
-        // 1. Запускаем GPS
         await startTracking();
-        
-        // 2. Запрашиваем права на шагомер
         const isPedometerReady = await requestStepPermissions();
         
         if (isPedometerReady) {
-          // Запоминаем шаги, которые уже были пройдены за день
           const currentTotal = await getStepsForToday();
           initialStepsRef.current = currentTotal;
 
-          // Подписываемся на обновления
           stepSubscriptionRef.current = watchStepCount((totalStepsToday) => {
-            if (!isPaused) {
-              // Шаги за эту тренировку = Всего за сегодня - Шаги на старте
-              const currentWorkoutSteps = totalStepsToday - (initialStepsRef.current || totalStepsToday);
-              setWorkoutSteps(currentWorkoutSteps);
+            if (isPaused) return;
 
-              // 📊 Пересчитываем дистанцию (в километрах)
-              const newDistanceKm = (currentWorkoutSteps * stepLengthMeters) / 1000;
-              setDistance(newDistanceKm);
+            // Считаем сырые данные
+            const currentWorkoutSteps = totalStepsToday - (initialStepsRef.current || totalStepsToday);
+            
+            // ТРОТТЛИНГ: Обновляем стейт React не чаще 1 раза в 2 секунды (2000 мс)
+            const now = Date.now();
+            if (now - lastUpdateTimeRef.current >= 2000) {
+              
+              const distanceKm = (currentWorkoutSteps * stepLengthM) / 1000;
+              // Формула: Вес(кг) * Расстояние(км) * Коэффициент
+              const burnedCalories = weight * distanceKm * efficiencyFactor;
+
+              // Обновляем UI
+              setWorkoutSteps(currentWorkoutSteps);
+              setDistance(distanceKm);
+              setCalories(burnedCalories);
+              
+              lastUpdateTimeRef.current = now;
             }
           });
-        } else {
-          Alert.alert("Шагомер недоступен", "Ваше устройство не поддерживает подсчет шагов или вы не дали разрешение.");
         }
       }
     };
@@ -93,43 +85,28 @@ export default function ActiveRunScreen() {
     initTracking();
 
     return () => {
-      // Отписываемся от шагомера при уходе с экрана
-      if (stepSubscriptionRef.current) {
-        stepSubscriptionRef.current.remove();
-      }
+      if (stepSubscriptionRef.current) stepSubscriptionRef.current.remove();
     };
-  }, [activeWorkout]); // Внимание: убрал isTracking/isPaused из зависимостей, чтобы не пересоздавать подписку
+  }, [activeWorkout, isPaused]); 
 
-  // ТАЙМЕР И КАЛОРИИ
+
+  // ТАЙМЕР (Идет каждую секунду, но не вызывает тяжелых пересчетов)
   useEffect(() => {
     if (!isPaused && activeWorkout) {
       timerRef.current = setInterval(() => {
         setElapsedSeconds((prev) => prev + 1);
-        
-        // Калории считаем гибридно:
-        // Базовые калории (горят всегда) + Калории за движение (на основе шагов/мин)
-        // Если шагов нет, горит только база. Если идем/бежим - добавляется MET
-        setCalories((prevCal) => {
-           // Примитивный расчет интенсивности: если бег, сжигаем больше
-           const metValue = isRun ? 9.8 : 3.8; 
-           // Мы добавляем "активные" калории каждую секунду тренировки
-           return prevCal + (baseCaloriesPerSecond * metValue);
-        });
-
       }, 1000);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-
     return () => clearInterval(timerRef.current);
   }, [isPaused, activeWorkout]);
 
-  // Форматирование времени
+
   const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    
     if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
@@ -170,12 +147,12 @@ export default function ActiveRunScreen() {
 
     const finalRoute = await stopTracking();
 
-    navigation.navigate('WorkoutSummary', { 
+    navigation.navigate('WorkoutSummaryScreen', { 
        type: activeWorkout?.type || 'Тренировка',
        durationSeconds: elapsedSeconds,
        distanceKm: distance, 
        calories: calories,
-       steps: workoutSteps, // Передаем РЕАЛЬНЫЕ шаги
+       steps: workoutSteps, 
        routeCoordinates: finalRoute 
     });
   };
@@ -221,18 +198,13 @@ export default function ActiveRunScreen() {
              </View>
              <View style={styles.divider} />
              <View style={styles.metricItem}>
-                {/* Показываем реальные шаги датчика */}
                 <Text style={styles.metricValue}>{workoutSteps}</Text>
                 <Text style={styles.metricLabel}>ШАГИ</Text>
              </View>
           </View>
 
           <View style={styles.controls}>
-            <TouchableOpacity 
-              style={[styles.controlBtn, isPaused ? styles.resumeBtn : styles.pauseBtn]} 
-              onPress={handlePause}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[styles.controlBtn, isPaused ? styles.resumeBtn : styles.pauseBtn]} onPress={handlePause} activeOpacity={0.8}>
               {isPaused ? <Play size={40} color="black" fill="black" style={{ marginLeft: 6 }} /> : <Pause size={40} color="black" fill="black" />}
             </TouchableOpacity>
 
@@ -247,7 +219,6 @@ export default function ActiveRunScreen() {
   );
 }
 
-// ... стили остаются такие же, как в прошлом сообщении
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background || '#000' },
   container: { flex: 1, justifyContent: 'space-between' },
