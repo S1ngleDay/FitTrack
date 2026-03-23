@@ -259,3 +259,57 @@ export const getScoreDescription = (score) => {
   if (score >= 40) return { level: 'Средне 📈', color: '#FF9F0A', text: 'Чуть больше усилий!' };
   return { level: 'Начинаем! 🚀', color: '#FF3B30', text: 'Самое время начать действовать!' };
 };
+export const getWeightRecommendation = (exerciseId, pastWorkouts, userWeight = 70) => {
+  // 🛠️ Упрощённо — по maxWeight прошлых тренировок
+  const exerciseHistory = pastWorkouts
+    .filter(w => w.type === 'Силовая' && w.exercises)
+    .map(w => {
+      const ex = w.exercises.find(e => e.exerciseId === exerciseId);
+      return ex ? { date: w.date, maxWeight: Math.max(...(ex.completedSets || []).map(s => s.weight || 0)) || 0 } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.date.localeCompare(a.date)) // 🛠️ Сортировка по строке даты "DD.MM"
+    .slice(0, 5);
+
+  if (exerciseHistory.length === 0) {
+    const starterWeight = Math.round(userWeight * 0.5);
+    return { weight: starterWeight, advice: `Начните с ${starterWeight}кг`, confidence: 'low' };
+  }
+
+  const lastMaxWeight = exerciseHistory[0].maxWeight;
+  const suggested = lastMaxWeight > 0 ? Math.round(lastMaxWeight * 1.05) : 40;
+  
+  return {
+    weight: Math.max(suggested, 20),
+    advice: `Прошлый max: ${lastMaxWeight}кг → ${suggested}кг`,
+    confidence: lastMaxWeight > 0 ? 'medium' : 'low'
+  };
+};
+
+export const analyzeExerciseProgress = (exerciseId, workouts) => {
+  const history = workouts
+    .filter(w => w.type === 'Силовая' && w.exercises)
+    .map(w => {
+      const ex = w.exercises.find(e => e.exerciseId === exerciseId);
+      return ex ? { 
+        date: w.date, 
+        maxWeight: ex.sets > 0 ? (ex.volume / (ex.sets * 10)) : 0, // Примерный вес
+        volume: ex.volume || 0 
+      } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (history.length < 2) return { trend: 'no-data', weightProgress: 0, sessions: history.length };
+
+  const first = history[history.length - 1]; // Самая старая
+  const last = history[0]; // Последняя
+  const weightProgress = first.maxWeight > 0 ? ((last.maxWeight - first.maxWeight) / first.maxWeight * 100) : 0;
+
+  return {
+    trend: weightProgress > 5 ? 'up' : weightProgress < -5 ? 'down' : 'stable',
+    weightProgress: Math.round(weightProgress),
+    volumeProgress: Math.round(((last.volume - first.volume) / first.volume * 100) || 0),
+    sessions: history.length,
+  };
+};

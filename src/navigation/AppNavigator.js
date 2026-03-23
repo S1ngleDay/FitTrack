@@ -6,25 +6,27 @@ import ActiveRunScreen from '../screens/ActiveRunScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import SecurityScreen from '../screens/SecurityScreen';
 
-// ✅ ИМПОРТИРУЙТЕ ВАШИ ЭКРАНЫ ДЕТАЛЕЙ
-import TimeDetailsScreen from '../screens/TimeDetailsScreen';       // Проверьте путь!
+// ✅ Детали экраны
+import TimeDetailsScreen from '../screens/TimeDetailsScreen';
 import CaloriesDetailsScreen from '../screens/CaloriesDetailsScreen';
 import DistanceDetailsScreen from '../screens/DistanceDetailsScreen';
 import StepsDetailsScreen from '../screens/StepsDetailsScreen';
+
+// 🆕 СИЛОВЫЕ ЭКРАНЫ (импортируй созданные файлы)
+import CreateWorkoutPlanScreen from '../screens/CreateWorkoutPlanScreen';
+import ActiveWorkoutScreen from '../screens/ActiveWorkoutScreen';
+import WorkoutReportScreen from '../screens/WorkoutReportScreen';
 
 const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-
+      
       {/* Главный экран с табами и свайпом */}
-      <Stack.Screen 
-        name="Home" 
-        component={SwipeableScreens} 
-      />
+      <Stack.Screen name="Home" component={SwipeableScreens} />
 
-      {/* Тренировка */}
+      {/* 🟢 КАРДИО (твои текущие) */}
       <Stack.Screen 
         name="ActiveRun" 
         component={ActiveRunScreen}
@@ -36,37 +38,48 @@ export default function AppNavigator() {
         options={{ gestureEnabled: false, animation: 'fade_from_bottom' }}
       />
 
-      {/* ✅ ДОБАВЬТЕ ЭТИ ЭКРАНЫ СЮДА */}
-      {/* Имена 'TimeDetails' должны совпадать с тем, что вы вызываете в navigation.navigate('TimeDetails') */}
-      
-      <Stack.Screen 
-        name="TimeDetails" 
-        component={TimeDetailsScreen} 
-        options={{ headerShown: false, title: 'Время', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
-      />
-      
-      <Stack.Screen 
-        name="CaloriesDetails" 
-        component={CaloriesDetailsScreen} 
-        options={{ headerShown: false, title: 'Калории', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
-      />
-      
-      <Stack.Screen 
-        name="DistanceDetails" 
-        component={DistanceDetailsScreen} 
-        options={{ headerShown: false, title: 'Дистанция', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
-      />
-      
-      <Stack.Screen 
-        name="StepsDetails" 
-        component={StepsDetailsScreen} 
-        options={{ headerShown: false, title: 'Шаги', headerTintColor: 'white', headerStyle: { backgroundColor: 'black' } }}
-      />
+      {/* Детали экраны */}
+      <Stack.Screen name="TimeDetails" component={TimeDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="CaloriesDetails" component={CaloriesDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="DistanceDetails" component={DistanceDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="StepsDetails" component={StepsDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SecurityScreen" component={SecurityScreen} options={{ headerShown: false }} />
 
+      {/* 🆕 СИЛОВЫЕ ТРЕНИРОВКИ — ПОЛНЫЙ ФЛОУ */}
       <Stack.Screen 
-        name="SecurityScreen" 
-        component={SecurityScreen} 
-        options={{ headerShown: false }}
+        name="CreateWorkoutPlan" 
+        component={CreateWorkoutPlanScreen}
+        options={{ 
+          gestureEnabled: true,
+          animation: 'slide_from_right',
+          title: 'Новый план',
+          headerStyle: { backgroundColor: '#1C1C1E' },
+          headerTintColor: 'white',
+          headerTitleStyle: { fontFamily: 'Inter_700Bold' }
+        }}
+      />
+      
+      <Stack.Screen 
+        name="ActiveWorkout" 
+        component={ActiveWorkoutScreen}
+        options={{ 
+          gestureEnabled: false, // Не свайпить во время подходов!
+          animation: 'slide_from_bottom',
+          title: 'Тренировка'
+        }}
+      />
+      
+      <Stack.Screen 
+        name="WorkoutReport" 
+        component={WorkoutReportScreen}
+        options={{ 
+          gestureEnabled: true,
+          animation: 'fade_from_bottom',
+          title: 'Отчёт о тренировке',
+          headerStyle: { backgroundColor: '#1C1C1E' },
+          headerTintColor: 'white',
+          headerTitleStyle: { fontFamily: 'Inter_700Bold' }
+        }}
       />
 
     </Stack.Navigator>
