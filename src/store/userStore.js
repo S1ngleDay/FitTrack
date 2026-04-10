@@ -1,35 +1,47 @@
-// userStore.js
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// 1. Выносим дефолтное состояние отдельно
+const initialState = {
+  user: {
+    name: '', // Было 'Петр Иванов'
+    email: '',
+    gender: 'male',
+    weight: '',
+    height: '',
+    age: '',
+    avatar: null,
+    // Goals for daily targets
+    goalCalories: 2000, // Default daily calorie target
+    goalSteps: 10000,   // Default daily steps target
+    goalDistance: 0,    // Default daily distance target (km)
+  },
+  settings: {
+    isDark: true,
+    notifications: true,
+    language: 'Русский', // или 'ru', смотря что ты используешь
+  }
+};
+
 export const useUserStore = create(
   persist(
     (set) => ({
-      user: {
-        name: 'Петр Иванов',
-        email: 'petr.ivanov@example.com',
-        gender: 'male', // 'male' | 'female'
-        weight: 75, // кг
-        height: 180, // см
-        age: 28,
-        avatar: null, // URI картинки (пока заглушка)
-      },
+      ...initialState, // 2. Разворачиваем начальное состояние
 
       updateUser: (updates) => set((state) => ({
         user: { ...state.user, ...updates }
       })),
 
-      // Настройки приложения (можно тоже тут хранить)
-      settings: {
-        isDark: true,
-        notifications: true,
-        language: 'Русский',
-      },
-
-      toggleSetting: (key) => set((state) => ({
-        settings: { ...state.settings, [key]: !state.settings[key] }
+      toggleSetting: (key, value) => set((state) => ({
+        settings: {
+          ...state.settings,
+          [key]: value !== undefined ? value : !state.settings[key]
+        }
       })),
+
+      // 3. ДОБАВЛЯЕМ МЕТОД ОЧИСТКИ
+      clearUser: () => set(initialState),
     }),
     {
       name: 'user-storage',

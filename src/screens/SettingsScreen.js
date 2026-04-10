@@ -1,58 +1,56 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, Alert, Modal, TextInput, Platform,
-  KeyboardAvoidingView, Image
+  View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, Modal, TextInput, Platform, KeyboardAvoidingView, Image, Linking
 } from 'react-native';
-import {
-  User, Bell, Moon, Globe, HelpCircle, LogOut,
-  ChevronRight, Crown, Shield, X, Edit2, Camera
-} from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { User, Bell, Moon, Globe, HelpCircle, LogOut, X, Edit2, Camera, DownloadCloud, UploadCloud, Check } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-
+import { exportWorkouts, importWorkoutsFromFile } from '../utils/backupUtils';
 import SettingItem from '../components/SettingItem';
-import colors from '../constants/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { useUserStore } from '../store/userStore';
 import { useWorkoutStore } from '../store/workoutStore';
 import { getMetricValue } from '../utils/statsCalculator';
+import { useTranslation } from '../hooks/useTranslation';
 
 export default function SettingsScreen({ navigation }) {
-  const user = useUserStore((s) => s.user);
-  const settings = useUserStore((s) => s.settings);
-  const toggleSetting = useUserStore((s) => s.toggleSetting);
-  const updateUser = useUserStore((s) => s.updateUser);
-  const workouts = useWorkoutStore(s => s.workouts);
+  const colors = useThemeColors();
+  const { t, language } = useTranslation();
 
-  // --- РАСЧЕТ СТАТИСТИКИ (РЕАЛЬНЫЙ) ---
+  const user = useUserStore(s => s.user);
+  const settings = useUserStore(s => s.settings);
+  const toggleSetting = useUserStore(s => s.toggleSetting);
+  const updateUser = useUserStore(s => s.updateUser);
+  const workouts = useWorkoutStore(s => s.workouts);
+  const importWorkouts = useWorkoutStore(s => s.importWorkouts);
+  const clearUser = useUserStore(s => s.clearUser);
+  const clearWorkouts = useWorkoutStore(s => s.clearAll);
+
   const stats = useMemo(() => {
     const totalWorkouts = workouts.length;
     let totalMinutes = 0;
-
     workouts.forEach(w => {
       const dur = w.duration || getMetricValue(w.metrics, '⏱️') || 0;
       totalMinutes += dur;
     });
-
-    const timeDisplay = totalMinutes < 60
-      ? `${totalMinutes}м`
-      : `${(totalMinutes / 60).toFixed(1)}ч`;
-
+    const timeDisplay = totalMinutes < 60 ? totalMinutes : (totalMinutes / 60).toFixed(1);
     const streak = 5;
-
     return { count: totalWorkouts, time: timeDisplay, streak };
   }, [workouts]);
 
-  // --- РЕДАКТИРОВАНИЕ ---
+  // --- Profile Edit State ---
   const [editVisible, setEditVisible] = useState(false);
   const [tempName, setTempName] = useState(user.name);
   const [tempWeight, setTempWeight] = useState(String(user.weight));
   const [tempHeight, setTempHeight] = useState(String(user.height));
-  const [tempAge, setTempAge] = useState(String(user.age || ''));
+  const [tempAge, setTempAge] = useState(String(user.age));
   const [tempGender, setTempGender] = useState(user.gender || 'male');
-  const [tempGoal, setTempGoal] = useState(user.goal || 'maintenance'); // lose_weight, gain_muscle, maintenance
-  const [tempTargetWeight, setTempTargetWeight] = useState(String(user.targetWeight || ''));
+  const [tempGoalCalories, setTempGoalCalories] = useState(String(user.goalCalories || 2000));
+  const [tempGoalSteps, setTempGoalSteps] = useState(String(user.goalSteps || 10000));
+  const [tempGoalDistance, setTempGoalDistance] = useState(String(user.goalDistance || 0));
+
+  // --- Language Modal State ---
+  const [langVisible, setLangVisible] = useState(false);
 
   const handleSaveProfile = () => {
     updateUser({
@@ -61,69 +59,56 @@ export default function SettingsScreen({ navigation }) {
       height: parseFloat(tempHeight) || user.height,
       age: parseInt(tempAge, 10) || user.age,
       gender: tempGender,
-      goal: tempGoal,
-      targetWeight: parseFloat(tempTargetWeight) || user.targetWeight,
+      goalCalories: parseInt(tempGoalCalories, 10) || 2000,
+      goalSteps: parseInt(tempGoalSteps, 10) || 10000,
+      goalDistance: parseFloat(tempGoalDistance) || 0,
     });
     setEditVisible(false);
   };
 
   const handleOpenEdit = () => {
-    // Подтягиваем актуальные данные перед открытием
     setTempName(user.name);
     setTempWeight(String(user.weight));
     setTempHeight(String(user.height));
-    setTempAge(String(user.age || ''));
+    setTempAge(String(user.age));
     setTempGender(user.gender || 'male');
-    setTempGoal(user.goal || 'maintenance');
-    setTempTargetWeight(String(user.targetWeight || ''));
+    setTempGoalCalories(String(user.goalCalories || 2000));
+    setTempGoalSteps(String(user.goalSteps || 10000));
+    setTempGoalDistance(String(user.goalDistance || 0));
     setEditVisible(true);
   };
 
-  // --- УПРАВЛЕНИЕ АВАТАРКОЙ ---
   const handleAvatarPress = () => {
     const buttons = [
-      { text: 'Выбрать из галереи', onPress: () => setTimeout(pickImage, 100) },
+      { text: t('chooseFromLibrary'), onPress: () => setTimeout(pickImage, 100) },
     ];
-
     if (user.avatar) {
-      buttons.push({ text: 'Удалить фото', onPress: removeAvatar, style: 'destructive' });
+      buttons.push({ text: t('removePhoto'), onPress: removeAvatar, style: 'destructive' });
     }
-
-    buttons.push({ text: 'Отмена', style: 'cancel' });
-
-    Alert.alert('Фото профиля', 'Выберите действие', buttons);
+    buttons.push({ text: t('cancel'), style: 'cancel' });
+    Alert.alert('', '', buttons);
   };
 
   const pickImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (permissionResult.status !== 'granted') {
-        Alert.alert('Требуется разрешение', 'Пожалуйста, разрешите доступ к галерее.');
-        return;
-      }
-
+      if (permissionResult.status !== 'granted') return;
       let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true, aspect: [1, 1], quality: 0.8,
       });
-
       if (!result.canceled) {
         const tempUri = result.assets[0].uri;
         const fileName = tempUri.split('/').pop();
         const permanentUri = FileSystem.documentDirectory + fileName;
-
         if (user.avatar && user.avatar.includes(FileSystem.documentDirectory)) {
           await FileSystem.deleteAsync(user.avatar, { idempotent: true });
         }
-
         await FileSystem.copyAsync({ from: tempUri, to: permanentUri });
         updateUser({ avatar: permanentUri });
       }
     } catch (error) {
-      Alert.alert('Ошибка', 'Что-то пошло не так при загрузке фотографии.');
+      console.log(error);
     }
   };
 
@@ -135,295 +120,340 @@ export default function SettingsScreen({ navigation }) {
     updateUser({ avatar: null });
   };
 
+  const handleExport = async () => {
+    try {
+      if (workouts.length === 0) return;
+      await exportWorkouts(workouts);
+    } catch (error) { }
+  };
 
-  // --- БЕЗОПАСНОСТЬ ---
-  const handleSecuritySettings = () => {
-    navigation.navigate('SecurityScreen');
+  const handleImport = async () => {
+    try {
+      const importedData = await importWorkoutsFromFile();
+      if (!importedData || importedData.length === 0) return;
+      Alert.alert(
+        'Импорт',
+        `Найдено ${importedData.length} тренировок. Что сделать?`,
+        [
+          { text: 'Отмена', style: 'cancel' },
+          { text: 'Заменить текущие', style: 'destructive', onPress: () => importWorkouts(importedData, 'replace') },
+          { text: 'Объединить', onPress: () => importWorkouts(importedData, 'merge') },
+        ]
+      );
+    } catch (error) { }
+  };
+
+  const changeLanguage = (langCode) => {
+    // В сторе userStore функция toggleSetting(key, value)
+    toggleSetting('language', langCode);
+    setLangVisible(false);
+  };
+
+    // 1. Функция полного удаления данных и выхода
+  const performLogout = async () => {
+    // Очищаем сторы Zustand
+    clearWorkouts();
+    clearUser();
+
+    // Опционально: если у тебя есть другие ключи в AsyncStorage или кэшированные картинки
+    // можно вызвать полную очистку AsyncStorage:
+    // await AsyncStorage.clear();
+
+    // Если у тебя есть авторизация (Login screen), отправляем туда.
+    // Если используешь условный рендеринг (например, если user.email пустой -> экран логина),
+    // то навигация произойдет автоматически.
+    // Иначе: navigation.replace('Login');
+  };
+
+  // 2. Обработчик нажатия на кнопку "Log Out"
+  const handleLogoutPress = () => {
+    Alert.alert(
+      t('logoutConfirm') || 'Выход из аккаунта',
+      'Хотите экспортировать ваши тренировки перед выходом, чтобы не потерять данные?',
+      [
+        { 
+          text: t('cancel') || 'Отмена', 
+          style: 'cancel' 
+        },
+        { 
+          text: 'Выйти без сохранения', 
+          style: 'destructive',
+          onPress: performLogout 
+        },
+        { 
+          text: 'Экспортировать и выйти', 
+          onPress: async () => {
+            await handleExport(); // Вызываем твою уже готовую функцию экспорта
+            performLogout();      // После экспорта удаляем данные
+          } 
+        }
+      ]
+    );
+  };
+
+
+  const handleOpenHelp = async () => {
+    const url = 'https://t.me/FitTrackSD';
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Ошибка', 'Не удалось открыть ссылку');
+      }
+    } catch (error) {
+      Alert.alert('Ошибка', 'Не удалось открыть Telegram-канал');
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-        {/* 1. Header Профиля */}
+        {/* Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8}>
               {user.avatar ? (
                 <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <User size={40} color="#8E8E93" />
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                  <User size={40} color={colors.textSecondary} />
                 </View>
               )}
-              <View style={styles.cameraBadge}>
-                <Camera size={14} color="white" />
+              <View style={[styles.cameraBadge, { borderColor: colors.background }]}>
+                <Camera size={14} color="#fff" />
               </View>
             </TouchableOpacity>
           </View>
 
           <View style={styles.nameRow}>
-            <Text style={styles.profileName}>{user.name}</Text>
+            <Text style={[styles.profileName, { color: colors.textPrimary }]}>{user.name}</Text>
             <TouchableOpacity onPress={handleOpenEdit} hitSlop={10}>
               <Edit2 size={16} color="#0A84FF" style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </View>
+          <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>{user.email}</Text>
 
-          <Text style={styles.profileEmail}>{user.email}</Text>
-
-          {/* Добавил возраст в плашку */}
-          <View style={styles.physicalTag}>
-            <Text style={styles.physicalText}>
+          <View style={[styles.physicalTag, { backgroundColor: colors.cardBg }]}>
+            <Text style={[styles.physicalText, { color: colors.textPrimary }]}>
               {user.age ? `${user.age} лет • ` : ''}{user.weight} кг • {user.height} см
-              {user.goal === 'lose_weight' ? ' • Сброс' : user.goal === 'gain_muscle' ? ' • Набор' : ' • Норма'}
             </Text>
           </View>
 
-          {/* Микро-статистика */}
-          <View style={styles.miniStatsContainer}>
+          <View style={[styles.miniStatsContainer, { backgroundColor: colors.cardBg }]}>
             <View style={styles.miniStatItem}>
-              <Text style={styles.miniStatValue}>{stats.count}</Text>
-              <Text style={styles.miniStatLabel}>Тренировки</Text>
+              <Text style={[styles.miniStatValue, { color: colors.textPrimary }]}>{stats.count}</Text>
+              <Text style={[styles.miniStatLabel, { color: colors.textSecondary }]}>{t('workoutsCount')}</Text>
             </View>
-            <View style={styles.dividerVertical} />
+            <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
             <View style={styles.miniStatItem}>
-              <Text style={styles.miniStatValue}>{stats.time}</Text>
-              <Text style={styles.miniStatLabel}>Активность</Text>
+              <Text style={[styles.miniStatValue, { color: colors.textPrimary }]}>{stats.time}</Text>
+              <Text style={[styles.miniStatLabel, { color: colors.textSecondary }]}>{t('timeSpent')}</Text>
             </View>
-            <View style={styles.dividerVertical} />
+            <View style={[styles.dividerVertical, { backgroundColor: colors.border }]} />
             <View style={styles.miniStatItem}>
-              <Text style={[styles.miniStatValue, { color: '#FF9F0A' }]}>🔥 {stats.streak}</Text>
-              <Text style={styles.miniStatLabel}>Серия дней</Text>
+              <Text style={[styles.miniStatValue, { color: '#FF9F0A' }]}>{stats.streak}</Text>
+              <Text style={[styles.miniStatLabel, { color: colors.textSecondary }]}>{t('streak')}</Text>
             </View>
           </View>
         </View>
 
-        {/* Контент */}
         <View style={styles.contentContainer}>
 
-          {/* Баннер PRO */}
-          <TouchableOpacity activeOpacity={0.9} style={styles.proBanner}>
-            <LinearGradient colors={['#1C1C1E', '#2C2C2E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.proGradient}>
-              <View style={styles.proContent}>
-                <View style={[styles.proIconCircle, { backgroundColor: '#FFD60A' }]}><Crown size={20} color="black" /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.proTitle, { color: '#FFD60A' }]}>PRO Premium</Text>
-                  <Text style={styles.proSubtitle}>Персональные планы и статистика</Text>
-                </View>
-                <View style={styles.proButton}>
-                  <Text style={styles.proButtonText}>Upgrade</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <SettingsGroup title="АККАУНТ">
-            <SettingItem icon={User} title="Личные данные" color="#0A84FF" hasChevron onPress={handleOpenEdit} />
-            <SettingItem icon={Shield} title="Безопасность" color="#32d74b" hasChevron onPress={handleSecuritySettings} />
+          <SettingsGroup title={t('profile')} colors={colors}>
+            <SettingItem icon={User} title={t('editProfile')} color="#0A84FF" hasChevron onPress={handleOpenEdit} />
           </SettingsGroup>
 
-          <SettingsGroup title="ПРИЛОЖЕНИЕ">
-            <SettingItem icon={Bell} title="Уведомления" color="#FF3B30" type="switch" value={settings?.notifications} onToggle={() => toggleSetting('notifications')} />
-            <SettingItem icon={Globe} title="Язык" color="#5856D6" type="value" value={settings?.language} hasChevron />
-            <SettingItem icon={Moon} title="Темная тема" color="#1C1C1E" type="switch" value={settings?.isDark} onToggle={() => toggleSetting('isDark')} />
+          <SettingsGroup title={t('data')} colors={colors}>
+            <SettingItem icon={UploadCloud} title={t('exportData')} color="#34C759" hasChevron onPress={handleExport} />
+            <SettingItem icon={DownloadCloud} title={t('importData')} color="#FF9F0A" hasChevron onPress={handleImport} />
           </SettingsGroup>
 
-          <SettingsGroup title="ПОДДЕРЖКА">
-            <SettingItem icon={HelpCircle} title="Помощь и FAQ" color="#8E8E93" hasChevron />
-            <SettingItem icon={LogOut} title="Выйти" color="#FF3B30" isDestructive onPress={() => Alert.alert('Выход', 'Вы уверены?', [{ text: 'Отмена' }, { text: 'Выйти', style: 'destructive' }])} />
+          <SettingsGroup title={t('preferences')} colors={colors}>
+            <SettingItem icon={Bell} title={t('notifications')} color="#FF3B30" type="switch" value={settings?.notifications} onToggle={() => toggleSetting('notifications')} />
+            <SettingItem icon={Globe} title={t('language')} color="#5856D6" type="value" value={language === 'ru' ? 'РУС' : 'ENG'} hasChevron onPress={() => setLangVisible(true)} />
+            <SettingItem icon={Moon} title={t('darkMode')} color="#1C1C1E" type="switch" value={settings?.isDark} onToggle={() => toggleSetting('isDark')} />
           </SettingsGroup>
 
-          <Text style={styles.versionText}>FitTrack v1.0.0 (Build 2026)</Text>
+          <SettingsGroup title={t('other')} colors={colors}>
+            <SettingItem icon={HelpCircle} title={t('help')} color="#8E8E93" hasChevron onPress={handleOpenHelp}/>
+            <SettingItem icon={LogOut} title={t('logout')} color="#FF3B30" isDestructive onPress={handleLogoutPress} />
+          </SettingsGroup>
 
+          <Text style={[styles.versionText, { color: colors.textSecondary }]}>FitTrack v1.0.0 (Build 2026)</Text>
         </View>
       </ScrollView>
 
-      {/* МОДАЛКА РЕДАКТИРОВАНИЯ */}
+      {/* --- EDIT PROFILE MODAL --- */}
       <Modal visible={editVisible} animationType="slide" transparent onRequestClose={() => setEditVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setEditVisible(false)} />
-
-          <View style={styles.modalContainer}>
-            <View style={styles.dragIndicator} />
-
+          <View style={[styles.modalContainer, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <View style={[styles.dragIndicator, { backgroundColor: colors.border }]} />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Редактировать профиль</Text>
-              <TouchableOpacity onPress={() => setEditVisible(false)} style={styles.closeBtn}>
-                <X size={20} color="#8E8E93" />
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{t('editProfile')}</Text>
+              <TouchableOpacity onPress={() => setEditVisible(false)} style={[styles.closeBtn, { backgroundColor: colors.border }]}>
+                <X size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalBody}>
-              {/* ИМЯ */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Имя</Text>
-                <TextInput style={styles.input} value={tempName} onChangeText={setTempName} placeholderTextColor="#555" />
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('name')}</Text>
+                <TextInput style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]} value={tempName} onChangeText={setTempName} placeholderTextColor={colors.textSecondary} />
               </View>
 
-              {/* ПОЛ */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Пол</Text>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('gender')}</Text>
                 <View style={styles.genderRow}>
-                  <TouchableOpacity
-                    style={[styles.genderBtn, tempGender === 'male' && styles.genderBtnActive]}
-                    onPress={() => setTempGender('male')}
-                  >
-                    <Text style={[styles.genderText, tempGender === 'male' && styles.genderTextActive]}>Мужской</Text>
+                  <TouchableOpacity style={[styles.genderBtn, { backgroundColor: colors.background, borderColor: colors.border }, tempGender === 'male' && styles.genderBtnActive]} onPress={() => setTempGender('male')}>
+                    <Text style={[styles.genderText, { color: colors.textSecondary }, tempGender === 'male' && styles.genderTextActive]}>{t('male')}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.genderBtn, tempGender === 'female' && styles.genderBtnActive]}
-                    onPress={() => setTempGender('female')}
-                  >
-                    <Text style={[styles.genderText, tempGender === 'female' && styles.genderTextActive]}>Женский</Text>
+                  <TouchableOpacity style={[styles.genderBtn, { backgroundColor: colors.background, borderColor: colors.border }, tempGender === 'female' && styles.genderBtnActive]} onPress={() => setTempGender('female')}>
+                    <Text style={[styles.genderText, { color: colors.textSecondary }, tempGender === 'female' && styles.genderTextActive]}>{t('female')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Ваша цель</Text>
-                    <View style={styles.genderRow}>
-                      <TouchableOpacity 
-                        style={[styles.genderBtn, tempGoal === 'lose_weight' && styles.goalBtnActive]}
-                        onPress={() => setTempGoal('lose_weight')}
-                      >
-                        <Text style={[styles.genderText, tempGoal === 'lose_weight' && styles.goalTextActive]}>Сброс</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.genderBtn, tempGoal === 'maintenance' && styles.goalBtnActive]}
-                        onPress={() => setTempGoal('maintenance')}
-                      >
-                        <Text style={[styles.genderText, tempGoal === 'maintenance' && styles.goalTextActive]}>Норма</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.genderBtn, tempGoal === 'gain_muscle' && styles.goalBtnActive]}
-                        onPress={() => setTempGoal('gain_muscle')}
-                      >
-                        <Text style={[styles.genderText, tempGoal === 'gain_muscle' && styles.goalTextActive]}>Набор</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  {/* ✅ ЦЕЛЕВОЙ ВЕС (Показываем только если цель Сброс или Набор) */}
-                  {(tempGoal === 'lose_weight' || tempGoal === 'gain_muscle') && (
-                    <View style={styles.inputGroup}>
-                       <Text style={styles.inputLabel}>Целевой вес (кг)</Text>
-                       <TextInput 
-                         style={styles.input} 
-                         value={tempTargetWeight} 
-                         onChangeText={setTempTargetWeight} 
-                         keyboardType="numeric" 
-                         placeholderTextColor="#555" 
-                         maxLength={4} 
-                         placeholder="Например: 75"
-                       />
-                    </View>
-                  )}
 
-              {/* ФИЗИЧЕСКИЕ ДАННЫЕ В РЯД (3 колонки) */}
               <View style={styles.rowInputs}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Возраст</Text>
-                  <TextInput style={styles.input} value={tempAge} onChangeText={setTempAge} keyboardType="numeric" placeholderTextColor="#555" maxLength={3} />
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('age')}</Text>
+                  <TextInput style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]} value={tempAge} onChangeText={setTempAge} keyboardType="numeric" maxLength={3} />
                 </View>
                 <View style={{ width: 10 }} />
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Вес (кг)</Text>
-                  <TextInput style={styles.input} value={tempWeight} onChangeText={setTempWeight} keyboardType="numeric" placeholderTextColor="#555" maxLength={4} />
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('weight')}</Text>
+                  <TextInput style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]} value={tempWeight} onChangeText={setTempWeight} keyboardType="numeric" maxLength={4} />
                 </View>
                 <View style={{ width: 10 }} />
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Рост (см)</Text>
-                  <TextInput style={styles.input} value={tempHeight} onChangeText={setTempHeight} keyboardType="numeric" placeholderTextColor="#555" maxLength={3} />
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('height')}</Text>
+                  <TextInput style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]} value={tempHeight} onChangeText={setTempHeight} keyboardType="numeric" maxLength={3} />
+                </View>
+              </View>
+
+              <Text style={[styles.inputLabel, { color: colors.textSecondary, marginBottom: 15, marginTop: 10 }]}>{t('dailyGoals')}</Text>
+
+              <View style={styles.rowInputs}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('goalCalories')}</Text>
+                  <TextInput style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]} value={tempGoalCalories} onChangeText={setTempGoalCalories} keyboardType="numeric" maxLength={5} />
+                </View>
+                <View style={{ width: 10 }} />
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('goalSteps')}</Text>
+                  <TextInput style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]} value={tempGoalSteps} onChangeText={setTempGoalSteps} keyboardType="numeric" maxLength={6} />
+                </View>
+                <View style={{ width: 10 }} />
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('goalDistance')}</Text>
+                  <TextInput style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]} value={tempGoalDistance} onChangeText={setTempGoalDistance} keyboardType="numeric" maxLength={5} />
                 </View>
               </View>
 
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveProfile}>
-                <Text style={styles.saveButtonText}>Сохранить изменения</Text>
+                <Text style={styles.saveButtonText}>{t('save')}</Text>
               </TouchableOpacity>
             </View>
-
             <View style={{ height: Platform.OS === 'ios' ? 20 : 10 }} />
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* --- LANGUAGE SELECTOR MODAL --- */}
+      <Modal visible={langVisible} animationType="slide" transparent onRequestClose={() => setLangVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setLangVisible(false)} />
+          <View style={[styles.modalContainer, { backgroundColor: colors.cardBg, borderColor: colors.border, paddingBottom: 40 }]}>
+            <View style={[styles.dragIndicator, { backgroundColor: colors.border }]} />
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{t('selectLanguage')}</Text>
+              <TouchableOpacity onPress={() => setLangVisible(false)} style={[styles.closeBtn, { backgroundColor: colors.border }]}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <TouchableOpacity
+                style={[styles.langRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+                onPress={() => changeLanguage('ru')}
+              >
+                <Text style={[styles.langText, { color: colors.textPrimary }]}>{t('russian')} (RU)</Text>
+                {language === 'ru' && <Check size={20} color="#0A84FF" />}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.langRow}
+                onPress={() => changeLanguage('en')}
+              >
+                <Text style={[styles.langText, { color: colors.textPrimary }]}>{t('english')} (EN)</Text>
+                {language === 'en' && <Check size={20} color="#0A84FF" />}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
     </SafeAreaView>
   );
 }
 
-const SettingsGroup = ({ title, children }) => (
+const SettingsGroup = ({ title, children, colors }) => (
   <View style={styles.settingsGroup}>
-    <Text style={styles.groupTitle}>{title}</Text>
-    <View style={styles.groupContainer}>
+    <Text style={[styles.groupTitle, { color: colors.textSecondary }]}>{title}</Text>
+    <View style={[styles.groupContainer, { backgroundColor: colors.cardBg }]}>
       {children}
     </View>
   </View>
 );
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background || '#000' },
-
-  profileHeader: { alignItems: 'center', paddingTop: 20, paddingBottom: 30, backgroundColor: colors.background || '#000' },
+  safeArea: { flex: 1 },
+  profileHeader: { alignItems: 'center', paddingTop: 20, paddingBottom: 30 },
   avatarContainer: { position: 'relative', marginBottom: 15 },
-  avatarPlaceholder: { width: 90, height: 90, borderRadius: 45, backgroundColor: colors.cardBg || '#1C1C1E', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
+  avatarPlaceholder: { width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   avatarImage: { width: 90, height: 90, borderRadius: 45 },
-  cameraBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#0A84FF', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.background || '#000' },
-
+  cameraBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: '#0A84FF', justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  profileName: { fontSize: 22, fontFamily: 'Inter_700Bold', color: 'white' },
-  profileEmail: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#8E8E93', marginBottom: 8 },
-
-  physicalTag: { backgroundColor: colors.cardBg || '#1C1C1E', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 20 },
-  physicalText: { color: colors.primary || '#CCFF00', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-
-  miniStatsContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '90%', backgroundColor: colors.cardBg || '#1C1C1E', borderRadius: 16, paddingVertical: 15 },
+  profileName: { fontSize: 22, fontFamily: 'Inter_700Bold' },
+  profileEmail: { fontSize: 13, fontFamily: 'Inter_500Medium', marginBottom: 8 },
+  physicalTag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, marginBottom: 20 },
+  physicalText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  miniStatsContainer: { flexDirection: 'row', justifyContent: 'space-around', width: '90%', borderRadius: 16, paddingVertical: 15 },
   miniStatItem: { alignItems: 'center', flex: 1 },
-  miniStatValue: { fontSize: 16, fontFamily: 'Inter_700Bold', color: 'white', marginBottom: 2 },
-  miniStatLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
-  dividerVertical: { width: 1, height: 30, backgroundColor: '#2C2C2E' },
-
+  miniStatValue: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 2 },
+  miniStatLabel: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  dividerVertical: { width: 1, height: 30 },
   contentContainer: { paddingHorizontal: 20, paddingTop: 10 },
-
-  proBanner: { marginBottom: 25, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#333' },
-  proGradient: { padding: 16 },
-  proContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  proIconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  proTitle: { fontSize: 16, fontFamily: 'Inter_800ExtraBold' },
-  proSubtitle: { fontSize: 12, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
-  proButton: { backgroundColor: 'rgba(255, 214, 10, 0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  proButtonText: { color: '#FFD60A', fontSize: 12, fontFamily: 'Inter_700Bold' },
-
   settingsGroup: { marginBottom: 25 },
-  groupTitle: { color: '#8E8E93', fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 8, marginLeft: 12, textTransform: 'uppercase' },
-  groupContainer: { backgroundColor: colors.cardBg || '#1C1C1E', borderRadius: 16, overflow: 'hidden' },
+  groupTitle: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 8, marginLeft: 12, textTransform: 'uppercase' },
+  groupContainer: { borderRadius: 16, overflow: 'hidden' },
+  versionText: { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 10, marginBottom: 20 },
 
-  versionText: { textAlign: 'center', color: '#3A3A3C', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 10, marginBottom: 20 },
-
-  // --- MODAL ---
+  // MODAL
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalBackdrop: { flex: 1 },
-  modalContainer: { backgroundColor: colors.cardBg || '#1C1C1E', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10, borderWidth: 1, borderColor: '#2C2C2E' },
-  dragIndicator: { width: 40, height: 4, backgroundColor: '#3A3A3C', borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
+  modalContainer: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10, borderWidth: 1 },
+  dragIndicator: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 15 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { color: 'white', fontSize: 18, fontFamily: 'Inter_700Bold' },
-  closeBtn: { padding: 5, backgroundColor: '#2C2C2E', borderRadius: 15 },
-
+  modalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  closeBtn: { padding: 5, borderRadius: 15 },
   modalBody: { paddingBottom: 10 },
-
   inputGroup: { marginBottom: 15 },
-  inputLabel: { color: '#8E8E93', fontSize: 12, marginBottom: 8, marginLeft: 4, fontFamily: 'Inter_500Medium' },
-  input: { backgroundColor: colors.background || '#000', borderRadius: 12, padding: 16, color: 'white', fontSize: 16, fontFamily: 'Inter_500Medium', borderWidth: 1, borderColor: '#2C2C2E', textAlign: 'center' },
-
+  inputLabel: { fontSize: 12, marginBottom: 8, marginLeft: 4, fontFamily: 'Inter_500Medium' },
+  input: { borderRadius: 12, padding: 16, fontSize: 16, fontFamily: 'Inter_500Medium', borderWidth: 1, textAlign: 'center' },
   rowInputs: { flexDirection: 'row', marginBottom: 25 },
-
-  // Кнопки пола
   genderRow: { flexDirection: 'row', gap: 10 },
-  genderBtn: { flex: 1, backgroundColor: colors.background || '#000', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
+  genderBtn: { flex: 1, borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1 },
   genderBtnActive: { backgroundColor: 'rgba(10, 132, 255, 0.15)', borderColor: '#0A84FF' },
-  genderText: { color: '#8E8E93', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  genderText: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   genderTextActive: { color: '#0A84FF' },
-
   saveButton: { backgroundColor: '#0A84FF', padding: 16, borderRadius: 16, alignItems: 'center' },
   saveButtonText: { color: 'white', fontSize: 16, fontFamily: 'Inter_700Bold' },
 
-  goalBtnActive: { backgroundColor: 'rgba(10, 132, 255, 0.15)', borderColor: '#0A84FF' },
-  goalTextActive: { color: '#0A84FF' },
+  // LANG MODAL
+  langRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16 },
+  langText: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
 });

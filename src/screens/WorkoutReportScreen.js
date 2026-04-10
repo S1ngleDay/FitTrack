@@ -1,46 +1,72 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, SafeAreaView, ScrollView, TouchableOpacity, StyleSheet,
-  Dimensions, Animated, Platform
+  Dimensions, Animated, Platform, TextInput, KeyboardAvoidingView, Keyboard
 } from 'react-native';
 import { 
-  ChevronLeft, Dumbbell, TrendingUp, Zap, Clock, Flame, 
-  CheckCircle2, Share2, BarChart3, Target
+  ChevronLeft, Dumbbell, TrendingUp, Clock, Flame, 
+  CheckCircle2, Target, Edit3
 } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+
 import { useWorkoutStore } from '../store/workoutStore';
-import { analyzeExerciseProgress, getHealthScore } from '../utils/coachAnalyzer';
-import colors from '../constants/colors';
+import { analyzeExerciseProgress } from '../utils/coachAnalyzer';
+import { useThemeColors } from '../hooks/useThemeColors';
+import { useTranslation } from '../hooks/useTranslation'; // 👈 Добавили хук перевода
 
 const { width } = Dimensions.get('window');
 
 export default function WorkoutReportScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const colors = useThemeColors();
+  const { t } = useTranslation(); // 👈 Вызов хука
+
   const workoutId = route.params?.workoutId;
-  
   const workouts = useWorkoutStore(s => s.workouts);
+  const updateWorkout = useWorkoutStore(s => s.updateWorkout);
+  
+  // Ищем текущую тренировку
   const workout = workouts.find(w => w.id === workoutId);
   
   const [progressData, setProgressData] = useState({});
+  const [planName, setPlanName] = useState('');
+  const [comment, setComment] = useState('');
 
+  // Инициализация стейтов при загрузке
   useEffect(() => {
     if (workout) {
+      setPlanName(workout.planName || (t('type_strength') || 'Силовая тренировка'));
+      setComment(workout.comment || '');
+
       const progress = {};
       workout.exercises.forEach(ex => {
         progress[ex.exerciseId] = analyzeExerciseProgress(ex.exerciseId, workouts);
       });
       setProgressData(progress);
     }
-  }, [workout]);
+  }, [workout, workouts]);
 
-  if (!workout || workout.type !== 'Силовая') {
+  // Сохранение изменений
+  const handleSaveEdits = () => {
+    if (workout) {
+      updateWorkout(workout.id, { 
+        planName: planName.trim(), 
+        comment: comment.trim() 
+      });
+    }
+  };
+
+  if (!workout || workout.type !== 'strength') {
     return (
-      <SafeAreaView style={styles.errorContainer}>
-        <Text style={styles.errorText}>Тренировка не найдена</Text>
-        <TouchableOpacity style={styles.errorBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.errorBtnText}>Вернуться назад</Text>
+      <SafeAreaView style={[styles.errorContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.textPrimary }]}>{t('report_errorNotFound')}</Text>
+        <TouchableOpacity 
+          style={[styles.errorBtn, { backgroundColor: colors.cardBg }]} 
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={[styles.errorBtnText, { color: colors.textPrimary }]}>{t('report_backBtn')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -48,249 +74,235 @@ export default function WorkoutReportScreen() {
 
   const durationMin = Math.floor(workout.duration || 0);
   const totalVolume = workout.totalVolume || 0;
-  
-  const stats = { 
-    totalCalories: workout.calories || 0,
-    totalMinutes: workout.duration || 0,
-    totalVolume: workout.totalVolume || 0,
-    strengthCount: 1,
-    workoutCount: 1
+
+  // Функция для перевода тренда
+  const getTrendText = (prog) => {
+    if (!prog || prog.trend === 'no-data') return null;
+    
+    let trendText = '';
+    if (prog.trend === 'up') {
+      trendText = t('report_trendUp').replace('{percent}', prog.weightProgress);
+    } else if (prog.trend === 'down') {
+      trendText = t('report_trendDown').replace('{percent}', Math.abs(prog.weightProgress));
+    } else {
+      trendText = t('report_trendStable').replace('{percent}', Math.abs(prog.weightProgress));
+    }
+    return trendText;
   };
-  const dailyStats = { steps: 0 };
-  const healthScore = getHealthScore(stats, dailyStats, { weight: 75, goal: 'gain_muscle' });
+
+  // Функция для перевода меток статистики
+  const getStatLabel = (statType) => {
+    switch (statType) {
+      case 'volume': return t('report_volumeUnit');
+      case 'time': return t('report_timeUnit');
+      case 'kcal': return t('report_kcalUnit');
+      default: return statType;
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backBtn}>
-          <ChevronLeft size={24} color="white" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>{workout.planName || 'Силовая тренировка'}</Text>
-          <Text style={styles.headerDate}>
-            {workout.date} • {new Date(workout.startTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.shareIconBtn}>
-          <Share2 size={24} color="#8E8E93" />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        
-        <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
-              <Dumbbell size={24} color="#FF3B30" />
-            </View>
-            <Text style={styles.metricValue}>{totalVolume.toLocaleString()}</Text>
-            <Text style={styles.metricLabel}>Объём, кг</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <View style={[styles.iconCircle, { backgroundColor: 'rgba(10, 132, 255, 0.1)' }]}>
-              <Clock size={24} color="#0A84FF" />
-            </View>
-            <Text style={styles.metricValue}>{durationMin}</Text>
-            <Text style={styles.metricLabel}>Минут</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
-              <Flame size={24} color="#FF9500" />
-            </View>
-            <Text style={styles.metricValue}>{workout.calories}</Text>
-            <Text style={styles.metricLabel}>Ккал</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      >
+        <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+          <TouchableOpacity onPress={() => navigation.navigate('Home')} style={[styles.backBtn, { backgroundColor: colors.cardBg }]}>
+            <ChevronLeft size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={[styles.headerDate, { color: colors.textSecondary }]}>
+              {workout.date} • {new Date(workout.startTime).toLocaleTimeString(navigator.language || 'ru-RU', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.scoreCard}>
-          <LinearGradient colors={['#1C1C1E', '#2C2C2E']} style={styles.scoreGradient}>
-            <View style={styles.scoreHeader}>
-              <BarChart3 size={24} color="#32D74B" />
-              <Text style={styles.scoreTitle}>Оценка продуктивности</Text>
-            </View>
-            <View style={styles.scoreBody}>
-              <View style={styles.scoreCircle}>
-                <Text style={styles.scoreNumber}>{healthScore}</Text>
-              </View>
-              <View style={styles.scoreTextContent}>
-                <Text style={styles.scoreSubtitle}>
-                  {healthScore > 85 ? 'Выдающийся результат! 🏆' : healthScore > 70 ? 'Отличная тренировка! 💪' : 'Хорошая работа! 👍'}
-                </Text>
-                <Text style={styles.scoreDesc}>
-                  Вы подняли {totalVolume} кг за {durationMin} минут. Отличный стимул для роста мышц.
-                </Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
+        <ScrollView 
+          style={styles.scroll} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Редактируемый заголовок */}
+          <View style={styles.titleSection}>
+            <TextInput
+              style={[styles.editableTitle, { color: colors.textPrimary }]}
+              value={planName}
+              onChangeText={setPlanName}
+              onBlur={handleSaveEdits}
+              multiline
+              maxLength={40}
+              placeholder={t('report_notesPlaceholder')}
+              placeholderTextColor={colors.textSecondary}
+            />
+            <Edit3 size={16} color={colors.textSecondary} style={{ marginLeft: 8, marginTop: 8 }} />
+          </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Выполненные упражнения</Text>
-          {workout.exercises.map((ex, index) => {
-            const prog = progressData[ex.exerciseId];
-            return (
-              <View key={index} style={styles.exerciseItem}>
-                <View style={styles.exerciseLeft}>
-                  <View style={styles.exerciseIcon}>
-                    <Target size={20} color="#FF9500" />
-                  </View>
-                  <View>
-                    <Text style={styles.exerciseName}>{ex.name}</Text>
-                    <Text style={styles.exerciseSets}>
-                      {ex.sets} подходов • {Math.round(ex.volume)} кг
-                    </Text>
-                  </View>
-                </View>
-                
-                {prog && prog.trend !== 'no-data' ? (
-                  <View style={[
-                    styles.trendBadge,
-                    prog.trend === 'up' ? styles.trendUp : prog.trend === 'down' ? styles.trendDown : styles.trendStable
-                  ]}>
-                    <TrendingUp 
-                      size={16} 
-                      color={prog.trend === 'stable' ? '#000' : 'white'} 
-                      style={prog.trend === 'down' ? { transform: [{ rotate: '180deg' }] } : {}} 
-                    />
-                    <Text style={[
-                      styles.trendText,
-                      prog.trend === 'stable' && { color: '#000' }
-                    ]}>
-                      {prog.weightProgress > 0 ? '+' : ''}{prog.weightProgress}%
-                    </Text>
-                  </View>
-                ) : null}
+          {/* Статистика */}
+          <View style={styles.metricsRow}>
+            <View style={[styles.metricCard, { backgroundColor: colors.cardBg, shadowColor: colors.textPrimary }]}>
+              <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 59, 48, 0.1)' }]}>
+                <Dumbbell size={24} color="#FF3B30" />
               </View>
-            );
-          })}
-        </View>
+              <Text style={[styles.metricValue, { color: colors.textPrimary }]}>{totalVolume.toLocaleString()}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{getStatLabel('volume')}</Text>
+            </View>
+            <View style={[styles.metricCard, { backgroundColor: colors.cardBg, shadowColor: colors.textPrimary }]}>
+              <View style={[styles.iconCircle, { backgroundColor: 'rgba(10, 132, 255, 0.1)' }]}>
+                <Clock size={24} color="#0A84FF" />
+              </View>
+              <Text style={[styles.metricValue, { color: colors.textPrimary }]}>{durationMin}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{getStatLabel('time')}</Text>
+            </View>
+            <View style={[styles.metricCard, { backgroundColor: colors.cardBg, shadowColor: colors.textPrimary }]}>
+              <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
+                <Flame size={24} color="#FF9500" />
+              </View>
+              <Text style={[styles.metricValue, { color: colors.textPrimary }]}>{workout.calories}</Text>
+              <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{getStatLabel('kcal')}</Text>
+            </View>
+          </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Прогресс по плану</Text>
-          <View style={styles.progressBarsCard}>
+          {/* Редактируемые заметки */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('report_notesTitle')}</Text>
+            <View style={[styles.commentCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <TextInput
+                style={[styles.commentInput, { color: colors.textPrimary }]}
+                value={comment}
+                onChangeText={setComment}
+                onBlur={handleSaveEdits}
+                multiline
+                placeholder={t('report_notesPlaceholder')}
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          </View>
+
+          {/* Выполненные упражнения */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{t('report_exercisesTitle')}</Text>
             {workout.exercises.map((ex, index) => {
-              const target = ex.targetSets || 4;
-              const percent = Math.min((ex.sets / target) * 100, 100);
+              const prog = progressData[ex.exerciseId];
+              const trendText = getTrendText(prog);
+              const setsText = t('report_setsText')
+                .replace('{sets}', ex.sets)
+                .replace('{volume}', Math.round(ex.volume));
               
               return (
-                <View key={`prog-${index}`} style={styles.progressBarContainer}>
-                  <View style={styles.progressHeader}>
-                    <Text style={styles.progressLabel}>{ex.name}</Text>
-                    <Text style={styles.progressPercent}>{Math.round(percent)}%</Text>
+                <View key={index} style={[styles.exerciseItem, { backgroundColor: colors.cardBg }]}>
+                  <View style={styles.exerciseLeft}>
+                    <View style={[styles.exerciseIcon, { backgroundColor: colors.background }]}>
+                      <Target size={20} color="#FF9500" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.exerciseName, { color: colors.textPrimary }]}>{ex.name}</Text>
+                      <Text style={[styles.exerciseSets, { color: colors.textSecondary }]}>{setsText}</Text>
+                    </View>
                   </View>
-                  <View style={styles.progressBar}>
-                    <Animated.View 
-                      style={[
-                        styles.progressFill,
-                        { width: `${percent}%` },
-                        percent >= 100 && { backgroundColor: '#32D74B' }
-                      ]} 
-                    />
-                  </View>
+                  
+                  {trendText ? (
+                    <View style={[
+                      styles.trendBadge,
+                      prog.trend === 'up' ? styles.trendUp : 
+                      prog.trend === 'down' ? styles.trendDown : styles.trendStable
+                    ]}>
+                      <TrendingUp 
+                        size={16} 
+                        color={prog.trend === 'stable' ? '#000' : 'white'} 
+                        style={prog.trend === 'down' ? { transform: [{ rotate: '180deg' }] } : {}} 
+                      />
+                      <Text style={[
+                        styles.trendText,
+                        prog.trend === 'stable' && { color: '#000' }
+                      ]}>
+                        {trendText}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               );
             })}
           </View>
+
+          <View style={{ height: 120 }} />
+        </ScrollView>
+
+        <View style={[styles.bottomActions, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
+          <TouchableOpacity 
+            style={styles.newWorkoutBtn} 
+            onPress={() => {
+              Keyboard.dismiss();
+              handleSaveEdits();
+              navigation.navigate('Home');
+            }}
+          >
+            <LinearGradient colors={['#32D74B', '#00C805']} style={styles.gradientBtn}>
+              <CheckCircle2 size={24} color="#003300" />
+              <Text style={styles.newWorkoutText}>{t('report_doneBtn')}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
-        {workout.comment ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Заметки</Text>
-            <View style={styles.commentCard}>
-              <Text style={styles.commentText}>{workout.comment}</Text>
-            </View>
-          </View>
-        ) : null}
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.newWorkoutBtn} onPress={() => navigation.navigate('Home')}>
-          <LinearGradient colors={['#32D74B', '#00C805']} style={styles.gradientBtn}>
-            <CheckCircle2 size={24} color="#003300" />
-            <Text style={styles.newWorkoutText}>Завершить</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   scroll: { flex: 1 },
   
-  errorContainer: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: 'white', fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 20 },
-  errorBtn: { backgroundColor: '#2C2C2E', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  errorBtnText: { color: 'white', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 20 },
+  errorBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  errorBtnText: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   
   header: { 
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 15,
-    backgroundColor: '#1C1C1E', borderBottomWidth: 1, borderBottomColor: '#2C2C2E'
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10,
+    borderBottomWidth: 1
   },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center' },
-  headerContent: { flex: 1, marginLeft: 16 },
-  headerTitle: { color: 'white', fontSize: 20, fontFamily: 'Inter_700Bold' },
-  headerDate: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_500Medium', marginTop: 4 },
-  shareIconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-end' },
+  backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  headerContent: { flex: 1, alignItems: 'center', paddingRight: 40 },
+  headerDate: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   
-  metricsRow: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10, gap: 12 },
+  titleSection: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
+  editableTitle: { flex: 1, fontSize: 32, fontFamily: 'Inter_800ExtraBold', padding: 0, margin: 0, minHeight: 40 },
+
+  metricsRow: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 15, paddingBottom: 20, gap: 12 },
   metricCard: { 
-    flex: 1, backgroundColor: '#1C1C1E', alignItems: 'center', paddingVertical: 20, paddingHorizontal: 10,
-    borderRadius: 20, elevation: 5, shadowColor: '#000', shadowOffset: {width:0,height:4}, shadowOpacity:0.2, shadowRadius: 6 
+    flex: 1, alignItems: 'center', paddingVertical: 16, paddingHorizontal: 5,
+    borderRadius: 20, elevation: 3, shadowOffset: {width:0,height:2}, shadowOpacity:0.1, shadowRadius: 4 
   },
-  iconCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  metricValue: { fontSize: 22, fontFamily: 'Inter_700Bold', color: colors.textPrimary },
-  metricLabel: { fontSize: 12, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
-  
-  scoreCard: { margin: 20, borderRadius: 24, elevation: 8, shadowColor: '#000', shadowOffset: {width:0,height:6}, shadowOpacity:0.3, shadowRadius: 10 },
-  scoreGradient: { borderRadius: 24, padding: 24 },
-  scoreHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
-  scoreTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: 'white' },
-  scoreBody: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  scoreCircle: { 
-    width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(50, 215, 75, 0.1)', 
-    borderWidth: 2, borderColor: '#32D74B', justifyContent: 'center', alignItems: 'center' 
-  },
-  scoreNumber: { fontSize: 28, fontFamily: 'Inter_700Bold', color: '#32D74B' },
-  scoreTextContent: { flex: 1 },
-  scoreSubtitle: { color: 'white', fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 6 },
-  scoreDesc: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
+  iconCircle: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  metricValue: { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  metricLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
   
   section: { marginHorizontal: 20, marginBottom: 25 },
-  sectionTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: colors.textPrimary, marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 12 },
   
+  commentCard: { borderRadius: 16, borderWidth: 1, minHeight: 100 },
+  commentInput: { padding: 16, fontSize: 16, fontFamily: 'Inter_500Medium', minHeight: 100, textAlignVertical: 'top' },
+
   exerciseItem: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#1C1C1E', padding: 16, borderRadius: 20, marginBottom: 12 
+    padding: 16, borderRadius: 16, marginBottom: 12 
   },
   exerciseLeft: { flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1 },
-  exerciseIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center' },
-  exerciseName: { fontSize: 16, fontFamily: 'Inter_700Bold', color: 'white', marginBottom: 4 },
-  exerciseSets: { fontSize: 13, color: colors.textSecondary, fontFamily: 'Inter_500Medium' },
-  trendBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  exerciseIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  exerciseName: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 2 },
+  exerciseSets: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  
+  trendBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   trendUp: { backgroundColor: 'rgba(50, 215, 75, 0.2)' },
   trendDown: { backgroundColor: 'rgba(255, 59, 48, 0.2)' },
   trendStable: { backgroundColor: '#FFD60A' },
-  trendText: { color: 'white', fontSize: 13, fontFamily: 'Inter_700Bold' },
-  
-  progressBarsCard: { backgroundColor: '#1C1C1E', borderRadius: 24, padding: 20, gap: 20 },
-  progressBarContainer: { gap: 8 },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressLabel: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: 'white' },
-  progressPercent: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#8E8E93' },
-  progressBar: { height: 8, backgroundColor: '#2C2C2E', borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#FF9500', borderRadius: 4 },
-  
-  commentCard: { backgroundColor: '#1C1C1E', borderRadius: 20, padding: 20 },
-  commentText: { fontSize: 15, color: '#E5E5E7', fontFamily: 'Inter_500Medium', lineHeight: 22 },
+  trendText: { color: 'white', fontSize: 12, fontFamily: 'Inter_700Bold' },
   
   bottomActions: { 
     position: 'absolute', bottom: 0, left: 0, right: 0,
     padding: 20, paddingBottom: Platform.OS === 'ios' ? 35 : 20,
-    backgroundColor: '#1C1C1E', borderTopLeftRadius: 24, borderTopRightRadius: 24
+    borderTopWidth: 1
   },
   newWorkoutBtn: { borderRadius: 16, overflow: 'hidden' },
   gradientBtn: { flexDirection: 'row', padding: 18, alignItems: 'center', justifyContent: 'center', gap: 10 },

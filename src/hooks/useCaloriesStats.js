@@ -2,12 +2,14 @@
 import { useMemo } from 'react';
 import generateFullDayData from '../utils/chartUtils';
 import { useWorkoutStore } from '../store/workoutStore';
+import { useUserStore } from '../store/userStore';
 import { getMetricValue, isToday } from '../utils/statsCalculator';
 
-const CAL_GOAL = 600;
+const DEFAULT_CAL_GOAL = 2000;
 
 export function useCaloriesStats() {
   const workouts = useWorkoutStore(s => s.workouts) || [];
+  const goalCalories = useUserStore(s => s.user?.goalCalories || DEFAULT_CAL_GOAL);
 
   return useMemo(() => {
     const todayWorkouts = workouts.filter(w => isToday(w.date));
@@ -24,8 +26,8 @@ export function useCaloriesStats() {
       const c = getMetricValue(w.metrics, '🔥') || 0;
       totalCal += c;
       
-      if (w.type === 'Пробежка') runCal += c;
-      else if (w.type === 'Силовая') strengthCal += c;
+      if (w.type === 'run') runCal += c;
+      else if (w.type === 'strength') strengthCal += c;
       else otherCal += c;
 
       if (w.startTime) {
@@ -47,9 +49,11 @@ export function useCaloriesStats() {
       { value: otherCal || 1, color: '#FFD60A' }, 
     ];
 
-    // Дополнительные метрики
-    const avgHeartRate = totalCal > 0 ? Math.round(140 * (totalCal / CAL_GOAL)) : 140;
-    const intensity = totalCal > 400 ? 'Высокая' : 'Средняя';
+    // Интенсивность на основе процента от цели
+    const intensityPercent = (totalCal / goalCalories) * 100;
+    let intensity = 'Низкая';
+    if (intensityPercent >= 100) intensity = 'Высокая';
+    else if (intensityPercent >= 60) intensity = 'Средняя';
 
     return {
       totalCal,
@@ -58,9 +62,9 @@ export function useCaloriesStats() {
       otherCal,
       chartData,
       pieData,
-      avgHeartRate,
       intensity,
-      calGoal: CAL_GOAL,
+      calGoal: goalCalories,
+      progressPercent: Math.min((totalCal / goalCalories) * 100, 100),
     };
-  }, [workouts]);
+  }, [workouts, goalCalories]);
 }

@@ -18,19 +18,18 @@ export default function FloatingButton({ onPress }) {
 
 const styles = StyleSheet.create({
   button: {
-    position: 'absolute', // Абсолютное позиционирование (поверх всего)
+    position: 'absolute', // Абсолютное позиционирование 
     bottom: 20,           // Отступ снизу
-    alignSelf: 'center',  // По центру экрана (как на скриншоте)
-    // Если хотите справа, замените alignSelf на: right: 20,
+    alignSelf: 'center',  // По центру экрана 
     
     width: 64,
     height: 64,
-    borderRadius: 32,     // Идеальный круг
-    backgroundColor: colors.primary, // Неоновый зеленый
+    borderRadius: 32,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     
-    // Тень (чтобы кнопка "парила")
+    // Тень
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

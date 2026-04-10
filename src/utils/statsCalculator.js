@@ -1,11 +1,23 @@
 // src/utils/statsCalculator.js
 
 // Парсинг даты "13.02" в объект Date (текущий год)
-export const parseWorkoutDate = (dateString) => {
-  if (!dateString) return new Date();
-  const [day, month] = dateString.split('.').map(Number);
-  const year = new Date().getFullYear();
-  return new Date(year, month - 1, day);
+export const parseWorkoutDate = (dateString, timeString) => {
+  if (!dateString && !timeString) return new Date();
+  
+  // Если это timestamp (число или ISO строка)
+  if (typeof dateString === 'number' || (typeof dateString === 'string' && dateString.includes('T'))) {
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) return date;
+  }
+  
+  // Если это формат "DD.MM"
+  if (typeof dateString === 'string' && dateString.includes('.')) {
+    const [day, month] = dateString.split('.').map(Number);
+    const year = new Date().getFullYear();
+    return new Date(year, month - 1, day);
+  }
+  
+  return new Date();
 };
 
 // Проверка на сегодня
@@ -32,7 +44,6 @@ export const getMetricValue = (metrics, icon) => {
 };
 
 // Расчет статистики за день
-// src/utils/statsCalculator.js — обновлённая функция
 export const getDailyStats = (workouts) => {
   const todayWorkouts = workouts.filter(w => isToday(w.date));
   let steps = 0;
@@ -41,12 +52,11 @@ export const getDailyStats = (workouts) => {
   let duration = 0;
 
   todayWorkouts.forEach(w => {
-    // ✅ ШАГИ: 👣 ИЛИ "шагов" (fallback)
-    steps += getMetricValue(w.metrics, '👣') || getMetricValue(w.metrics, 'шагов') || 0;
-    
-    distance += getMetricValue(w.metrics, '📍') || getMetricValue(w.metrics, 'км') || 0;
-    calories += getMetricValue(w.metrics, '🔥') || getMetricValue(w.metrics, 'ккал') || 0;
-    duration += getMetricValue(w.metrics, '⏱️') || getMetricValue(w.metrics, 'мин') || 0;
+    // Ищем метрики по emoji иконкам
+    steps += getMetricValue(w.metrics, '👣') || 0;
+    distance += getMetricValue(w.metrics, '📍') || 0;
+    calories += getMetricValue(w.metrics, '🔥') || 0;
+    duration += getMetricValue(w.metrics, '⏱️') || 0;
   });
 
   return {

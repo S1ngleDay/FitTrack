@@ -2,43 +2,51 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Switch } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import colors from '../constants/colors';
+import { useThemeColors } from '../hooks/useThemeColors'; 
 
 export default function SettingItem({ icon: Icon, title, type = 'link', value, onToggle, onPress, color }) {
+  const colors = useThemeColors();
+
   return (
     <TouchableOpacity 
-      style={styles.container} 
+      style={[
+        styles.container, 
+        { 
+          backgroundColor: colors.cardBg, 
+          borderBottomColor: colors.border 
+        }
+      ]} 
       onPress={onPress} 
-      disabled={type === 'switch'} // Если это свитч, то нажимать на всю строку нельзя (только на свитч)
+      disabled={type === 'switch'} 
       activeOpacity={0.7}
     >
       <View style={styles.left}>
-        {/* Иконка в цветном квадратике */}
+        {/* Иконка в цветном квадратике (иконка всегда белая) */}
         <View style={[styles.iconContainer, { backgroundColor: color || '#333' }]}>
           <Icon size={20} color="white" />
         </View>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
       </View>
 
       <View style={styles.right}>
-        {/* Если тип 'switch', показываем переключатель */}
+        {/* Свитч */}
         {type === 'switch' && (
           <Switch 
             value={value} 
             onValueChange={onToggle}
-            trackColor={{ false: '#3A3A3C', true: colors.primary }}
+            trackColor={{ false: colors.border, true: colors.green || '#32d74b' }}
             thumbColor={'white'}
           />
         )}
         
-        {/* Если тип 'link', показываем стрелочку */}
+        {/* Стрелочка */}
         {type === 'link' && (
           <ChevronRight size={20} color={colors.textSecondary} />
         )}
 
-        {/* Если тип 'value', показываем текст (например, версию приложения) */}
+        {/* Текст */}
         {type === 'value' && (
-          <Text style={styles.valueText}>{value}</Text>
+          <Text style={[styles.valueText, { color: colors.textSecondary }]}>{value}</Text>
         )}
       </View>
     </TouchableOpacity>
@@ -52,8 +60,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: colors.cardBg, // Темно-серый фон
-    marginBottom: 1, // Тонкая линия между пунктами
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   left: {
     flexDirection: 'row',
@@ -68,12 +75,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: colors.textPrimary,
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
   },
+  right: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   valueText: {
-    color: colors.textSecondary,
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
   }

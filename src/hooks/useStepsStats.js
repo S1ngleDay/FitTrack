@@ -1,13 +1,15 @@
 import { useMemo } from 'react';
 import generateFullDayData from '../utils/chartUtils';
 import { useWorkoutStore } from '../store/workoutStore';
+import { useUserStore } from '../store/userStore';
 import { getMetricValue, isToday } from '../utils/statsCalculator';
 import { usePedometer } from './usePedometer';
 
-const STEP_GOAL = 11000;
+const DEFAULT_STEP_GOAL = 10000;
 
 export function useStepsStats() {
   const workouts = useWorkoutStore(s => s.workouts) || [];
+  const goalSteps = useUserStore(s => s.user?.goalSteps || DEFAULT_STEP_GOAL);
   const { steps: sensorSteps, isAvailable } = usePedometer();
 
   return useMemo(() => {
@@ -30,7 +32,7 @@ export function useStepsStats() {
 
     const chartData = generateFullDayData(hourly.map((v, i) => ({ value: v, label: i })));
     
-    const remaining = Math.max(0, STEP_GOAL - finalSteps);
+    const remaining = Math.max(0, goalSteps - finalSteps);
     const pieData = [
       { value: finalSteps || 1, color: '#32d74b' },
       { value: remaining, color: '#2C2C2E' },
@@ -42,8 +44,8 @@ export function useStepsStats() {
       calories,
       chartData,
       pieData,
-      stepGoal: STEP_GOAL,
+      stepGoal: goalSteps,
       isLoading: !isAvailable,
     };
-  }, [workouts, sensorSteps, isAvailable]);
+  }, [workouts, goalSteps, sensorSteps, isAvailable]);
 }

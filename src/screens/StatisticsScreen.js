@@ -1,425 +1,558 @@
-// src/screens/StatisticsScreen.js
 import React, { useState, useMemo } from 'react';
-import { 
-  View, Text, StyleSheet, SafeAreaView, ScrollView, 
-  TouchableOpacity, Dimensions, Share 
-} from 'react-native';
-import { BarChart, PieChart } from 'react-native-gifted-charts'; 
-import { 
-  Info, Activity, Flame, MessageSquare, 
-  Share as ShareIcon, Target, Dumbbell, MapPin, Clock 
-} from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { usePedometer } from '../hooks/usePedometer';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, Share } from 'react-native';
+import { BarChart, PieChart, LineChart } from 'react-native-gifted-charts';
+import { Share as ShareIcon, Dumbbell, MapPin, Clock, Flame, Activity } from 'lucide-react-native';
 
-import colors from '../constants/colors';
-import { useWorkoutStore } from '../store/workoutStore';
-import { useUserStore } from '../store/userStore';
-import { getMetricValue, parseWorkoutDate } from '../utils/statsCalculator';
-
-import { 
-  analyzeWeeklyStats, 
-  generateCoachAdvice, 
-  getMotivationalQuote, 
-  getHealthScore, 
-  getScoreDescription 
-} from '../utils/coachAnalyzer'; 
+import { useThemeColors } from '../hooks/useThemeColors';
+import { useWorkoutStore, EXERCISES_CATALOG } from '../store/workoutStore';
+import { parseWorkoutDate, getMetricValue } from '../utils/statsCalculator';
+import { getExerciseChartData } from '../utils/coachAnalyzer';
+import { useTranslation } from '../hooks/useTranslation'; // 👈 Добавили хук перевода
 
 const { width } = Dimensions.get('window');
+const CHART_WIDTH = width - 80;
 
 export default function StatisticsScreen() {
-  const [period, setPeriod] = useState('Неделя'); 
-  const [chartMetric, setChartMetric] = useState('calories'); // calories | distance | duration
-  
-  const workouts = useWorkoutStore(s => s.workouts);
-  const user = useUserStore(s => s.user); 
-  
-  const { steps: liveSteps, isAvailable } = usePedometer();
-  const dailyStats = { steps: liveSteps }; 
+  const colors = useThemeColors();
+  const { t, language } = useTranslation(); // 👈 Вытаскиваем функцию перевода
 
-  // ✅ 1. БАЗОВЫЙ АНАЛИЗ И СОВЕТЫ
-  const analysisData = useMemo(() => {
-    const stats = analyzeWeeklyStats(workouts);
-    const healthScore = getHealthScore(stats, dailyStats, user);
-    const scoreInfo = getScoreDescription(healthScore);
-    const advices = generateCoachAdvice(stats, dailyStats, user);
-    const quote = getMotivationalQuote();
+  const [period, setPeriod] = useState('7 дней'); // Мы будем использовать ключи t('period7d'), но в стейте оставим русские id для логики
+  const [chartMetric, setChartMetric] = useState('duration');
+  const [selectedExercise, setSelectedExercise] = useState('Жим лежа');
+  const [pickerVisible, setPickerVisible] = useState(false);
 
-    return { stats, healthScore, scoreInfo, advices, quote };
-  }, [workouts, isAvailable, dailyStats.steps, user]);
+  const workouts = useWorkoutStore((s) => s.workouts);
 
-  // ✅ 2. СВОДКА И КРУГОВАЯ ДИАГРАММА (ЗА ПЕРИОД)
+  // Выбор периода: 7 дней, 28 дней, 180 дней
+  const startDate = useMemo(() => {
+    const now = new Date();
+    const daysToSubtract = period === '7 дней' ? 7 : period === '28 дней' ? 28 : 180;
+    return new Date(now.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+  }, [period]);
+
+  // Сводка
   const summaryStats = useMemo(() => {
     const now = new Date();
-    const daysToSubtract = period === 'Неделя' ? 7 : 28;
-    const startDate = new Date(now.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
-
     const periodWorkouts = workouts.filter(w => {
-      const wDate = parseWorkoutDate(w.date || w.startTime);
+      const wDate = parseWorkoutDate(w.date, w.startTime);
       return wDate >= startDate && wDate <= now;
     });
 
-    let totalCal = 0, totalDist = 0, totalDur = 0;
+    let totalCal = 0, totalDist = 0, totalDur = 0, totalVolume = 0;
     const typeMap = {};
+    const muscleMap = {};
 
-    periodWorkouts.forEach(w => {
-      totalCal += getMetricValue(w.metrics, '🔥') || w.calories || 0;
-      totalDist += getMetricValue(w.metrics, '📍') || w.distance || 0;
-      totalDur += getMetricValue(w.metrics, '⏱️') || w.duration || 0;
-      const type = w.type || 'Другое';
-      typeMap[type] = (typeMap[type] || 0) + 1;
+    periodWorkouts.forEach(w => {// ИСПРАВЛЕНИЕ: Оборачиваем всё в Number() для защиты от строк
+      totalCal += Number(getMetricValue(w.metrics, '🔥') || w.calories) || 0;
+      totalDist += Number(getMetricValue(w.metrics, '📍') || w.distance) || 0;
+      totalDur += Number(getMetricValue(w.metrics, '⏱️') || w.duration) || 0;
+      totalVolume += Number(getMetricValue(w.metrics, '💪') || w.totalVolume) || 0;
+
+      // Данные для кругового графика (Типы)
+      const typeStr = w.type ? t(w.type) : t('otherSource');
+      if (!typeMap[typeStr]) {
+        typeMap[typeStr] = { count: 0, originalType: w.type };
+      }
+      typeMap[typeStr].count += 1;
+
+      // Данные для кругового графика (Мышцы)
+      if (w.type === '' && w.exercises) {
+        w.exercises.forEach(ex => {
+          const catalogEx = EXERCISES_CATALOG.find(e => e.name === ex.name || e.id === ex.exerciseId);
+          if (catalogEx && catalogEx.category) {
+            const originalCat = catalogEx.category.toLowerCase();
+            if (originalCat !== '') {
+              const translatedCategory = t(originalCat) !== originalCat
+                ? t(originalCat)
+                : originalCat.charAt(0).toUpperCase() + originalCat.slice(1);
+
+              if (!muscleMap[translatedCategory]) muscleMap[translatedCategory] = 0;
+              muscleMap[translatedCategory] += (ex.sets?.length || 1);
+            }
+          }
+        });
+      }
     });
 
-    const pieColors = { 
-      'Пробежка': colors.green || '#32d74b', 
-      'Силовая': colors.yellow || '#FF9F0A', 
-      'Кардио': colors.red || '#FF3B30', 
-      'Велосипед': colors.blue || '#0A84FF', 
-      'Ходьба': colors.chartSteps || '#E0B0FF', 
-      'Другое': '#8E8E93' 
+    const pieColors = {
+      [t('Пробежка')]: colors.blue || '#0A84FF',
+      [t('Силовая')]: colors.red || '#FF3B30',
+      [t('Кардио')]: colors.yellow || '#FFD60A',
+      [t('Велосипед')]: colors.green || '#32d74b',
+      [t('Ходьба')]: colors.chartSteps || '#BF5AF2',
+      default: '#8E8E93'
     };
 
+    const muscleColors = ['#FF453A', '#32D74B', '#0A84FF', '#FF9F0A', '#BF5AF2', '#FF375F', '#FFD60A'];
+
     const pieData = Object.keys(typeMap).map(type => ({
-      value: typeMap[type],
-      color: pieColors[type] || pieColors['Другое'],
+      value: typeMap[type].count,
+      color: pieColors[type] || pieColors[typeMap[type].originalType] || pieColors.default,
       label: type
     }));
 
-    return { 
-      totalCal: Math.round(totalCal), 
-      totalDist: (Math.round(totalDist * 10) / 10), 
-      totalDur, 
-      count: periodWorkouts.length,
-      pieData 
-    };
-  }, [workouts, period]);
+    const muscleData = Object.keys(muscleMap).map((category, i) => ({
+      value: muscleMap[category],
+      color: muscleColors[i % muscleColors.length] || '#8E8E93',
+      label: category // 👈 Теперь здесь уже переведенное название (Chest, Legs и т.д.)
+    }));
 
-  // ✅ 3. ГРАФИК АКТИВНОСТИ (BarChart) - С ДИНАМИЧЕСКИМИ ЦВЕТАМИ
+
+    return {
+      totalCal: Math.round(totalCal),
+      totalDist: Math.round(totalDist * 10) / 10,
+      totalDur,
+      totalVolume: Math.round(totalVolume * 10) / 10,
+      count: periodWorkouts.length,
+      pieData,
+      muscleData
+    };
+  }, [workouts, startDate, colors, t]);
+
+  // Данные для BarChart
   const chartStats = useMemo(() => {
     const now = new Date();
     const dataMap = {};
 
     workouts.forEach(w => {
-      const wDate = parseWorkoutDate(w.date || w.startTime);
-      const dateKey = wDate.toDateString();
-      
-      let val = 0;
-      if (chartMetric === 'calories') val = getMetricValue(w.metrics, '🔥') || w.calories || 0;
-      if (chartMetric === 'distance') val = getMetricValue(w.metrics, '📍') || w.distance || 0;
-      if (chartMetric === 'duration') val = getMetricValue(w.metrics, '⏱️') || w.duration || 0;
-      
-      dataMap[dateKey] = (dataMap[dateKey] || 0) + val;
+      const wDate = parseWorkoutDate(w.date, w.startTime);
+      if (wDate >= startDate) {
+        let val = 0;
+        // ИСПРАВЛЕНИЕ: Безопасное извлечение метрик для графика
+        if (chartMetric === 'calories') {
+          val = Number(getMetricValue(w.metrics, '🔥') || w.calories) || 0;
+        }
+        if (chartMetric === 'distance') {
+          val = Number(getMetricValue(w.metrics, '📍') || w.distance) || 0;
+        }
+        if (chartMetric === 'duration') {
+          val = Number(getMetricValue(w.metrics, '⏱️') || w.duration) || 0;
+        }
+        const dateKey = wDate.toDateString();
+        if (!dataMap[dateKey]) dataMap[dateKey] = 0;
+        dataMap[dateKey] += val;
+      }
     });
 
     let rawBarData = [];
 
-    if (period === 'Неделя') {
-      const labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-      const dates = [];
+    // Обратите внимание: убедитесь, что стейт period действительно хранит строки с текстом " дней", 
+    // а не просто числа '7', '28', '180', как это было в прошлых версиях кода.
+
+    if (period === '7 дней') {
+      const labels = [t('daySun'), t('dayMon'), t('dayTue'), t('dayWed'), t('dayThu'), t('dayFri'), t('daySat')];
+
+      // Инициализируем локальный массив и потом присваиваем, 
+      // чтобы избежать дублирования старых данных при рендере
+      const daysData = [];
       for (let i = 6; i >= 0; i--) {
-        const d = new Date(now); d.setDate(now.getDate() - i); dates.push(d);
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        daysData.push({
+          value: Number(dataMap[d.toDateString()]) || 0,
+          label: labels[d.getDay()] // getDay() вернет 0 для Воскресенья, что идеально совпадает с массивом
+        });
       }
-      rawBarData = dates.map((d, i) => ({ value: dataMap[d.toDateString()] || 0, label: labels[i] || '' }));
-    } else {
+      rawBarData = daysData;
+
+    } else if (period === '28 дней') {
+      // 1. Обязательно инициализируем нулями
       const weeks = [0, 0, 0, 0];
-      const labels = ['1 нед', '2 нед', '3 нед', '4 нед'];
+
+      const labels = [
+        `1 ${t('weekPrefix') || 'нед.'}`,
+        `2 ${t('weekPrefix') || 'нед.'}`,
+        `3 ${t('weekPrefix') || 'нед.'}`,
+        `4 ${t('weekPrefix') || 'нед.'}`
+      ];
+
       for (let i = 27; i >= 0; i--) {
-        const d = new Date(now); d.setDate(now.getDate() - i);
-        const weekIndex = Math.floor((27 - i) / 7); 
-        weeks[weekIndex] += dataMap[d.toDateString()] || 0;
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        const dateStr = d.toDateString();
+
+        // Индекс недели: 0 (21-27 дней назад) ... 3 (0-6 дней назад)
+        const weekIndex = Math.floor((27 - i) / 7);
+
+        // Аккуратно прибавляем, оборачивая в Number(), чтобы избежать багов с '0150'
+        if (dataMap[dateStr]) {
+          weeks[weekIndex] += Number(dataMap[dateStr]);
+        }
+        console.log(weeks)
       }
-      rawBarData = weeks.map((val, idx) => ({ value: val, label: labels[idx] }));
+
+      // Формируем финальный объект
+      rawBarData = weeks.map((val, idx) => ({
+        value: val,
+        label: labels[idx]
+      }));
+
+    } else if (period === '180 дней') {
+      const months = [0, 0, 0, 0, 0, 0];
+      const monthNames = [t('monthJan'), t('monthFeb'), t('monthMar'), t('monthApr'), t('monthMay'), t('monthJun'), t('monthJul'), t('monthAug'), t('monthSep'), t('monthOct'), t('monthNov'), t('monthDec')];
+      const labels = [];
+
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        labels.push(monthNames[d.getMonth()]);
+      }
+
+      workouts.forEach(w => {
+        const wDate = parseWorkoutDate(w.date, w.startTime);
+
+        if (wDate >= startDate) {
+          let val = 0;
+          // Обертка в Number() гарантирует, что метрики сложатся математически
+          if (chartMetric === 'calories') val = Number(getMetricValue(w.metrics, '🔥') || w.calories || 0);
+          if (chartMetric === 'distance') val = Number(getMetricValue(w.metrics, '📍') || w.distance || 0);
+          if (chartMetric === 'duration') val = Number(getMetricValue(w.metrics, '⏱️') || w.duration || 0);
+          if (chartMetric === 'totalVolume') val = Number(getMetricValue(w.metrics, '💪') || w.totalVolume || 0);
+
+          const monthDiff = (now.getFullYear() - wDate.getFullYear()) * 12 + (now.getMonth() - wDate.getMonth());
+          if (monthDiff >= 0 && monthDiff <= 5) {
+            // monthDiff = 0 для текущего месяца (запишется в индекс 5)
+            months[5 - monthDiff] += val;
+          }
+        }
+      });
+
+      rawBarData = months.map((val, idx) => ({
+        value: val,
+        label: labels[idx]
+      }));
     }
 
     const rawMax = Math.max(...rawBarData.map(b => b.value));
     const maxValue = rawMax === 0 ? 10 : rawMax * 1.2;
 
     const barData = rawBarData.map(item => {
-      const isLeader = item.value === rawMax && rawMax > 0;
-      
-      // ✅ Динамический цвет в зависимости от выбранной метрики
-      let baseColor = '#2C2C2E';
+      let baseColor = colors.border;
       if (item.value > 0) {
-        if (chartMetric === 'calories') baseColor = colors.chartCalories || '#ff3b30';
-        if (chartMetric === 'distance') baseColor = colors.chartDistance || '#4da6ff';
-        if (chartMetric === 'duration') baseColor = colors.chartTime || '#32d74b';
+        if (chartMetric === 'calories') baseColor = colors.red || '#ff3b30';
+        if (chartMetric === 'distance') baseColor = colors.blue || '#0A84FF';
+        if (chartMetric === 'duration') baseColor = colors.green || '#32d74b';
       }
-      const leaderColor = colors.primary || '#CCFF00';
-
       return {
         ...item,
-        // Если 0, рисуем серую заглушку
-        value: item.value === 0 ? (maxValue * 0.05) : item.value, 
-        frontColor: item.value === 0 ? '#2C2C2E' : (isLeader ? leaderColor : baseColor),
-        topLabelComponent: isLeader && period === 'Неделя' ? () => <Text style={styles.topLabelText}>Пик</Text> : undefined,
+        value: item.value === 0 ? (maxValue * 0.05) : item.value,
+        frontColor: item.value === 0 ? colors.border : baseColor,
       };
     });
 
-    const unit = chartMetric === 'calories' ? 'ккал' : chartMetric === 'distance' ? 'км' : 'мин';
     const total = rawBarData.reduce((s, b) => s + b.value, 0);
+    const unit = chartMetric === 'calories' ? t('caloriesAbbr') : (chartMetric === 'distance' ? t('distanceAbbr') : t('minAbbr'));
 
-    return { barData, totalValue: chartMetric === 'distance' ? total.toFixed(1) : total, unit, maxValue };
-  }, [workouts, period, chartMetric]);
+    console.log(rawBarData);
+    return {
+      barData,
+      totalValue: chartMetric === 'distance' ? total.toFixed(1) : total,
+      unit,
+      maxValue
+    };
+  }, [workouts, period, chartMetric, startDate, colors, t]);
 
-  // ✅ Функция Поделиться
+  // Данные LineChart (Силовые)
+  const strengthData = useMemo(() => {
+    const rawData = getExerciseChartData(selectedExercise, workouts, startDate);
+    if (!rawData || rawData.length === 0) return [];
+    return rawData.map(item => ({
+      value: item.value,
+      label: item.date, // В идеале здесь тоже локализовать дату, если getExerciseChartData возвращает строку
+      dataPointText: String(item.value),
+    }));
+  }, [workouts, selectedExercise, startDate]);
+
   const handleShare = async () => {
     try {
+      const periodLabel = period === '7 дней' ? t('period7d') : period === '28 дней' ? t('period28d') : t('period6m');
       await Share.share({
-        message: `🔥 Мой фитнес-отчет за ${period.toLowerCase()}: Оценка здоровья ${analysisData.healthScore} баллов! Я провел ${summaryStats.count} тренировок, сжег ${summaryStats.totalCal} ккал и прошел ${summaryStats.totalDist} км. Присоединяйся к тренировкам в FitTrack! 💪`,
+        message: `🔥 FitTrack\n${t('shareMessage')} ${periodLabel.toLowerCase()}:\n🏃‍♂️ ${summaryStats.count} ${t('shareWorkouts')}\n🔥 ${summaryStats.totalCal} ${t('shareCalories')}\n🏋️ ${summaryStats.totalVolume} ${t('shareVolume')}`
       });
     } catch (error) {
-      console.log('Ошибка шаринга', error);
+      console.log(t('shareError'), error);
     }
   };
 
-  const formatTime = (m) => m < 60 ? `${m}м` : `${Math.floor(m/60)}ч ${m%60}м`;
+  const formatTime = (m) => {
+    if (m < 60) return `${m} ${t('minAbbr')}`;
+    return `${Math.floor(m / 60)}${t('hourAbbr')} ${m % 60}${t('minAbbr')}`;
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-         <View style={styles.headerTop}>
-            <Text style={styles.headerTitle}>Статистика</Text>
-            <TouchableOpacity onPress={handleShare} style={styles.shareBtn}>
-               <ShareIcon size={20} color="white" />
-            </TouchableOpacity>
-         </View>
-         <View style={styles.segmentControl}>
-             {['Неделя', 'Месяц'].map(p => (
-                 <TouchableOpacity 
-                    key={p} 
-                    style={[styles.segment, period === p && styles.activeSegment]}
-                    onPress={() => setPeriod(p)}
-                 >
-                     <Text style={[styles.segmentText, period === p && styles.activeSegmentText]}>{p}</Text>
-                 </TouchableOpacity>
-             ))}
-         </View>
+        <View style={styles.headerTop}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{t('statisticsTitle')}</Text>
+          <TouchableOpacity onPress={handleShare} style={[styles.shareBtn, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <ShareIcon size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Сегментированный контроль */}
+        <View style={[styles.segmentControl, { backgroundColor: colors.cardBg }]}>
+          {['7 дней', '28 дней', '180 дней'].map(p => {
+            const label = p === '7 дней' ? t('period7d') : p === '28 дней' ? t('period28d') : t('period6m');
+            return (
+              <TouchableOpacity
+                key={p}
+                style={[styles.segment, period === p && [styles.activeSegment, { backgroundColor: colors.border }]]}
+                onPress={() => setPeriod(p)}
+              >
+                <Text style={[styles.segmentText, period === p && { color: colors.textPrimary }]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-         
-         {/* 🎯 ОЦЕНКА ЗДОРОВЬЯ И ЦЕЛЬ */}
-         <View style={styles.topRowCards}>
-            <View style={[styles.scoreContainer, { flex: user?.targetWeight ? 1.2 : 1 }]}>
-               <View style={[styles.scoreCircle, { borderColor: analysisData.scoreInfo.color }]}>
-                  <Text style={styles.scoreNumber}>{analysisData.healthScore}</Text>
-               </View>
-               <View style={styles.scoreTextContainer}>
-                  <Text style={[styles.scoreTitle, { color: analysisData.scoreInfo.color }]}>{analysisData.scoreInfo.level}</Text>
-                  <Text style={styles.scoreSubtitle}>{analysisData.scoreInfo.text}</Text>
-               </View>
+        {/* 2x2 MINI GRID */}
+        <View style={styles.miniGrid}>
+          <View style={[styles.gridItem, { backgroundColor: colors.cardBg }]}>
+            <Activity size={20} color={colors.primary || '#CCFF00'} />
+            <View>
+              <Text style={[styles.gridValue, { color: colors.textPrimary }]}>{summaryStats.count}</Text>
+              <Text style={styles.gridLabel}>{t('workoutsLabel')}</Text>
             </View>
+          </View>
+          <View style={[styles.gridItem, { backgroundColor: colors.cardBg }]}>
+            <Clock size={20} color={colors.green || '#32d74b'} />
+            <View>
+              <Text style={[styles.gridValue, { color: colors.textPrimary }]}>{formatTime(summaryStats.totalDur)}</Text>
+              <Text style={styles.gridLabel}>{t('timeLabel')}</Text>
+            </View>
+          </View>
+          <View style={[styles.gridItem, { backgroundColor: colors.cardBg }]}>
+            <Flame size={20} color={colors.red || '#FF3B30'} />
+            <View>
+              <Text style={[styles.gridValue, { color: colors.textPrimary }]}>{summaryStats.totalCal.toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}</Text>
+              <Text style={styles.gridLabel}>{t('caloriesLabel')}</Text>
+            </View>
+          </View>
+          <View style={[styles.gridItem, { backgroundColor: colors.cardBg }]}>
+            <Dumbbell size={20} color={colors.yellow || '#FFD60A'} />
+            <View>
+              <Text style={[styles.gridValue, { color: colors.textPrimary }]}>{summaryStats.totalVolume}</Text>
+              <Text style={styles.gridLabel}>{t('volumeLabel')}</Text>
+            </View>
+          </View>
+        </View>
 
-            {/* ПРОГРЕСС ЦЕЛИ */}
-            {user?.targetWeight && (
-              <View style={styles.goalProgressCard}>
-                 <Target size={20} color="#0A84FF" style={{ marginBottom: 4 }} />
-                 <Text style={styles.goalLabel}>Цель: {user.targetWeight} кг</Text>
-                 <Text style={styles.goalValue}>Вес: {user.weight} кг</Text>
-                 <Text style={styles.goalDiff}>
-                    {Number(user.weight) === Number(user.targetWeight)
-                      ? '✅ Идеально!'
-                      : Number(user.weight) > Number(user.targetWeight)
-                        ? `Осталось сбросить: ${(user.weight - user.targetWeight).toFixed(1)} кг`
-                        : `Осталось набрать: ${(user.targetWeight - user.weight).toFixed(1)} кг`
-                    }
-                 </Text>
+        {/* MAIN CHART */}
+        <View style={[styles.chartCard, { backgroundColor: colors.cardBg }]}>
+          <View style={styles.chartHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>{t('activityByPeriod')}</Text>
+              <Text style={[styles.chartSubtitle, { color: colors.textPrimary }]}>
+                {Number(chartStats.totalValue).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')} {chartStats.unit}
+              </Text>
+            </View>
+            <View style={[styles.metricToggles, { backgroundColor: colors.background }]}>
+              <TouchableOpacity onPress={() => setChartMetric('duration')} style={[styles.metricBtn, chartMetric === 'duration' && { backgroundColor: colors.border }]}>
+                <Clock size={16} color={chartMetric === 'duration' ? (colors.green || '#32d74b') : '#8E8E93'} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setChartMetric('calories')} style={[styles.metricBtn, chartMetric === 'calories' && { backgroundColor: colors.border }]}>
+                <Flame size={16} color={chartMetric === 'calories' ? (colors.red || '#ff3b30') : '#8E8E93'} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setChartMetric('distance')} style={[styles.metricBtn, chartMetric === 'distance' && { backgroundColor: colors.border }]}>
+                <MapPin size={16} color={chartMetric === 'distance' ? (colors.blue || '#0A84FF') : '#8E8E93'} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={{ marginTop: 20 }}>
+            <BarChart
+            key={`bar-chart-${period}-${chartStats.maxValue}`}
+              data={chartStats.barData}
+              disableScroll={true}
+              barWidth={period === '7 дней' ? 18 : (period === '28 дней' ? 45 : 23)}
+              adjustToWidth={false}
+              noOfSections={3}
+              maxValue={chartStats.maxValue}
+              barBorderRadius={4}
+              yAxisThickness={0}
+              xAxisThickness={1}
+              xAxisColor={colors.border}
+              rulesLength={CHART_WIDTH - 30}
+              height={160}
+              width={CHART_WIDTH - 40}
+              yAxisTextStyle={{ color: '#8E8E93', fontSize: 10 }}
+              xAxisLabelTextStyle={{ color: '#8E8E93', fontSize: 11, textAlign: 'center' }}
+              hideRules={false}
+              rulesColor={colors.border}
+              isAnimated
+              animationDuration={500}
+            />
+          </View>
+        </View>
+
+        {/* STRENGTH CHART */}
+        <View style={[styles.chartCard, { backgroundColor: colors.cardBg }]}>
+          <View style={styles.strengthHeader}>
+            <Text style={styles.sectionTitle}>{t('maxWeight')}</Text>
+            <TouchableOpacity style={[styles.customPickerButton, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={() => setPickerVisible(true)} activeOpacity={0.7}>
+              <Text style={[styles.customPickerText, { color: colors.textPrimary }]}>{selectedExercise}</Text>
+              <Text style={styles.customPickerChevron}>▼</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ marginTop: 15 }}>
+            {strengthData.length > 1 ? (
+              <LineChart
+                data={strengthData}
+                height={180}
+                width={CHART_WIDTH - 40}
+                adjustToWidth={true}
+                color={colors.red || '#FF3B30'}
+                thickness={3}
+                startFillColor="rgba(255,59,48,0.3)"
+                endFillColor="rgba(255,59,48,0.0)"
+                startOpacity={0.9}
+                endOpacity={0.2}
+                areaChart
+                yAxisThickness={0}
+                xAxisThickness={1}
+                xAxisColor={colors.border}
+                yAxisTextStyle={{ color: '#8E8E93', fontSize: 10 }}
+                xAxisLabelTextStyle={{ color: '#8E8E93', fontSize: 10, width: 40, marginLeft: -10 }}
+                hideRules={false}
+                rulesColor={colors.border}
+                rulesLength={CHART_WIDTH - 30}
+                dataPointsColor={colors.red || '#FF3B30'}
+                dataPointsRadius={4}
+                textShiftY={-5}
+                textShiftX={-8}
+                textFontSize={12}
+                textColor={colors.textPrimary}
+                isAnimated
+              />
+            ) : (
+              <View style={[styles.emptyChart, { backgroundColor: colors.background }]}>
+                <Text style={styles.emptyChartText}>{t('notEnoughData')}</Text>
               </View>
             )}
-         </View>
+          </View>
+        </View>
 
-         {/* 🧮 СЕТКА ИТОГОВ 2x2 */}
-         <View style={styles.miniGrid}>
-            <View style={styles.gridItem}>
-               <Dumbbell size={18} color={colors.yellow || "#FFD60A"} />
-               <View>
-                 <Text style={styles.gridValue}>{summaryStats.count}</Text>
-                 <Text style={styles.gridLabel}>Тренировок</Text>
-               </View>
-            </View>
-            <View style={styles.gridItem}>
-               <Clock size={18} color={colors.green || "#32d74b"} />
-               <View>
-                 <Text style={styles.gridValue}>{formatTime(summaryStats.totalDur)}</Text>
-                 <Text style={styles.gridLabel}>Время</Text>
-               </View>
-            </View>
-            <View style={styles.gridItem}>
-               <Flame size={18} color={colors.red || "#FF3B30"} />
-               <View>
-                 <Text style={styles.gridValue}>{summaryStats.totalCal.toLocaleString()}</Text>
-                 <Text style={styles.gridLabel}>Калорий</Text>
-               </View>
-            </View>
-            <View style={styles.gridItem}>
-               <MapPin size={18} color={colors.blue || "#0A84FF"} />
-               <View>
-                 <Text style={styles.gridValue}>{summaryStats.totalDist}</Text>
-                 <Text style={styles.gridLabel}>Километров</Text>
-               </View>
-            </View>
-         </View>
-
-         {/* 📊 ГРАФИК АКТИВНОСТИ */}
-         <View style={styles.chartCard}>
-             <View style={styles.chartHeader}>
-                 <View>
-                     <Text style={styles.chartSubtitle}>{chartStats.totalValue.toLocaleString()} {chartStats.unit}</Text>
-                 </View>
-                 <View style={styles.metricToggles}>
-                    <TouchableOpacity onPress={() => setChartMetric('calories')} style={[styles.metricBtn, chartMetric === 'calories' && styles.metricBtnActive]}>
-                       <Flame size={14} color={chartMetric === 'calories' ? (colors.chartCalories || '#ff3b30') : '#8E8E93'} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setChartMetric('distance')} style={[styles.metricBtn, chartMetric === 'distance' && styles.metricBtnActive]}>
-                       <MapPin size={14} color={chartMetric === 'distance' ? (colors.chartDistance || '#4da6ff') : '#8E8E93'} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setChartMetric('duration')} style={[styles.metricBtn, chartMetric === 'duration' && styles.metricBtnActive]}>
-                       <Clock size={14} color={chartMetric === 'duration' ? (colors.chartTime || '#32d74b') : '#8E8E93'} />
-                    </TouchableOpacity>
-                 </View>
-             </View>
-             
-             <View style={{ marginTop: 20 }}>
-                <BarChart 
-                    data={chartStats.barData} 
-                    disableScroll={true} 
-                    
-                    barWidth={period === 'Месяц' ? 36 : 18} 
-                    adjustToWidth={period === 'Неделя'}
-                    spacing={period === 'Месяц' ? (width - 130 - (4 * 36)) / 3 : undefined}
-                    
-                    noOfSections={3} 
-                    maxValue={chartStats.maxValue} 
-                    barBorderRadius={4} 
-                    yAxisThickness={0} 
-                    xAxisThickness={1} 
-                    xAxisColor="#2C2C2E"
-                    
-                    height={160} 
-                    width={width - 130}
-                    
-                    endSpacing={period === 'Неделя' ? 0 : 10} 
-                    initialSpacing={period === 'Месяц' ? 10 : 0}
-                    
-                    yAxisTextStyle={{ color: '#8E8E93', fontSize: 10 }}
-                    xAxisLabelTextStyle={{ color: '#8E8E93', fontSize: 11, textAlign: 'center' }}
-                    hideRules={false} 
-                    rulesColor="rgba(255,255,255,0.05)"
-                    isAnimated 
-                    animationDuration={500} 
-                />
-             </View>
-         </View>
-
-         {/* 🍕 КРУГОВАЯ ДИАГРАММА */}
-         {summaryStats.pieData.length > 0 && (
-           <View style={styles.chartCard}>
-              <Text style={[styles.sectionTitle, { marginBottom: 20 }]}>Виды активности</Text>
-              <View style={styles.pieContainer}>
-                 <PieChart 
-                    data={summaryStats.pieData} 
-                    donut radius={70} innerRadius={45} 
-                    backgroundColor="transparent"
-                 />
-                 <View style={styles.pieLegend}>
-                    {summaryStats.pieData.map((item, idx) => (
-                      <View key={idx} style={styles.legendItem}>
-                         <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                         <Text style={styles.legendText}>{item.label} ({item.value})</Text>
-                      </View>
-                    ))}
-                 </View>
+        {/* PIE CHARTS */}
+        {summaryStats.pieData.length > 0 && (
+          <View style={[styles.chartCard, { backgroundColor: colors.cardBg }]}>
+            <Text style={[styles.sectionTitle, { marginBottom: 20 }]}>{t('activityTypes')}</Text>
+            <View style={styles.pieContainer}>
+              <PieChart data={summaryStats.pieData} donut radius={75} innerRadius={45} backgroundColor="transparent" />
+              <View style={styles.pieLegend}>
+                {summaryStats.pieData.map((item, idx) => (
+                  <View key={idx} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                    <Text style={styles.legendText}>{item.label}</Text>
+                    <Text style={[styles.legendValue, { color: colors.textPrimary }]}>{item.value}</Text>
+                  </View>
+                ))}
               </View>
-           </View>
-         )}
+            </View>
+          </View>
+        )}
 
-         {/* 🤖 СОВЕТЫ ТРЕНЕРА */}
-         <Text style={styles.sectionTitle}>Тренер рекомендует</Text>
-         {analysisData.advices.map((advice, i) => {
-            const getIcon = () => {
-              if(advice.type === 'success') return <Activity color={colors.green || "#32d74b"} size={24} />;
-              if(advice.type === 'warning') return <Flame color={colors.yellow || "#FF9F0A"} size={24} />;
-              if(advice.type === 'info') return <Info color={colors.blue || "#0A84FF"} size={24} />;
-              return <MessageSquare color="#8E8E93" size={24} />;
-            };
-            return (
-               <View key={i} style={styles.insightCard}>
-                   <View style={styles.iconBox}>{getIcon()}</View>
-                   <View style={styles.insightContent}>
-                       <Text style={styles.insightTitle}>{advice.title}</Text>
-                       <Text style={styles.insightText}>{advice.text}</Text>
-                   </View>
-               </View>
-            );
-         })}
-
-         {/* 💬 МОТИВАЦИЯ */}
-         <LinearGradient colors={['#1C1C1E', '#2C2C2E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.quoteCard}>
-            <Text style={styles.quoteText}>"{analysisData.quote}"</Text>
-         </LinearGradient>
+        {summaryStats.muscleData.length > 0 && (
+          <View style={[styles.chartCard, { backgroundColor: colors.cardBg }]}>
+            <Text style={[styles.sectionTitle, { marginBottom: 20 }]}>{t('muscleGroups')}</Text>
+            <View style={styles.pieContainer}>
+              <PieChart data={summaryStats.muscleData} donut radius={75} innerRadius={45} backgroundColor="transparent" />
+              <View style={styles.pieLegend}>
+                {summaryStats.muscleData.map((item, idx) => (
+                  <View key={idx} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                    <Text style={styles.legendText}>{item.label}</Text>
+                    <Text style={[styles.legendValue, { color: colors.textPrimary }]}>{item.value}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
 
       </ScrollView>
+
+      {/* MODAL PICKER EXERCISES */}
+      {pickerVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>{t('chooseExerciseModal')}</Text>
+              <TouchableOpacity onPress={() => setPickerVisible(false)} style={[styles.closeBtn, { backgroundColor: colors.border }]}>
+                <Text style={styles.closeBtnText}>{t('closeBtn')}</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {EXERCISES_CATALOG
+                .filter(e => e.category && e.category !== 'кардио')
+                .map((ex, idx) => (
+                  <TouchableOpacity
+                    key={ex.id}
+                    style={[
+                      styles.modalItem,
+                      { borderTopColor: colors.border },
+                      selectedExercise === ex.name && styles.modalItemActive,
+                      idx === 0 && { borderTopWidth: 0 }
+                    ]}
+                    onPress={() => {
+                      setSelectedExercise(ex.name);
+                      setPickerVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.modalItemText, { color: colors.textPrimary }, selectedExercise === ex.name && styles.modalItemTextActive]}>{ex.name}</Text>
+                    {selectedExercise === ex.name && <Text style={styles.modalItemCheck}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background || '#000' },
+  safeArea: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 10 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  headerTitle: { fontSize: 32, fontFamily: 'Inter_700Bold', color: 'white' },
-  shareBtn: { width: 40, height: 40, backgroundColor: '#1C1C1E', borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#2C2C2E' },
-  
-  segmentControl: { flexDirection: 'row', backgroundColor: '#1C1C1E', borderRadius: 12, padding: 4 },
+  headerTitle: { fontSize: 32, fontFamily: 'Inter_700Bold' },
+  shareBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  segmentControl: { flexDirection: 'row', borderRadius: 12, padding: 4 },
   segment: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
-  activeSegment: { backgroundColor: '#2C2C2E' },
+  activeSegment: {},
   segmentText: { color: '#8E8E93', fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-  activeSegmentText: { color: 'white' },
-
   content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 60 },
-
-  topRowCards: { flexDirection: 'row', gap: 12, marginBottom: 15 },
-  scoreContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1C1E', padding: 15, borderRadius: 20, gap: 15 },
-  scoreCircle: { width: 56, height: 56, borderRadius: 28, borderWidth: 4, justifyContent: 'center', alignItems: 'center' },
-  scoreNumber: { color: 'white', fontSize: 18, fontFamily: 'Inter_800ExtraBold' },
-  scoreTextContainer: { flex: 1 },
-  scoreTitle: { fontSize: 16, fontFamily: 'Inter_800ExtraBold', marginBottom: 2 },
-  scoreSubtitle: { color: '#8E8E93', fontSize: 11, fontFamily: 'Inter_500Medium', lineHeight: 14 },
-
-  goalProgressCard: { flex: 1, backgroundColor: 'rgba(10, 132, 255, 0.1)', padding: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(10, 132, 255, 0.3)', justifyContent: 'center' },
-  goalLabel: { color: '#0A84FF', fontSize: 12, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  goalValue: { color: 'white', fontSize: 11, fontFamily: 'Inter_500Medium', marginBottom: 6 },
-  goalDiff: { color: '#8E8E93', fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-
   miniGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
-  gridItem: { flex: 1, minWidth: '45%', backgroundColor: '#1C1C1E', borderRadius: 20, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  gridValue: { color: 'white', fontSize: 18, fontFamily: 'Inter_700Bold' },
-  gridLabel: { color: '#8E8E93', fontSize: 11, fontFamily: 'Inter_500Medium' },
-
-  chartCard: { backgroundColor: '#1C1C1E', borderRadius: 24, padding: 20, marginBottom: 20 },
+  gridItem: { flex: 1, minWidth: '45%', borderRadius: 20, padding: 18, alignItems: 'flex-start', gap: 10 },
+  gridValue: { fontSize: 22, fontFamily: 'Inter_700Bold', marginTop: 4 },
+  gridLabel: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_500Medium', marginTop: 2 },
+  chartCard: { borderRadius: 24, padding: 20, marginBottom: 20 },
   chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  chartSubtitle: { color: 'white', fontSize: 24, fontFamily: 'Inter_700Bold', marginTop: 4 },
-  
-  metricToggles: { flexDirection: 'row', backgroundColor: '#000', borderRadius: 12, padding: 4 },
+  sectionTitle: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase' },
+  chartSubtitle: { fontSize: 26, fontFamily: 'Inter_800ExtraBold', marginTop: 4 },
+  metricToggles: { flexDirection: 'row', borderRadius: 12, padding: 4 },
   metricBtn: { padding: 8, borderRadius: 8 },
-  metricBtnActive: { backgroundColor: '#2C2C2E' },
-  
-  topLabelText: { color: '#CCFF00', fontSize: 10, fontFamily: 'Inter_600SemiBold', marginBottom: 4, textAlign: 'center', width: 40, marginLeft: -10 },
-
+  strengthHeader: { marginBottom: 10 },
+  emptyChart: { height: 160, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
+  emptyChartText: { color: '#8E8E93', textAlign: 'center', fontFamily: 'Inter_500Medium', lineHeight: 20 },
   pieContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pieLegend: { flex: 1, marginLeft: 20, gap: 10 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { color: '#8E8E93', fontSize: 12, fontFamily: 'Inter_500Medium' },
-
-  sectionTitle: { color: 'white', fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 15 },
-  
-  insightCard: { flexDirection: 'row', backgroundColor: '#1C1C1E', borderRadius: 20, padding: 16, marginBottom: 12, gap: 15 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#2C2C2E', justifyContent: 'center', alignItems: 'center' },
-  insightContent: { flex: 1 },
-  insightTitle: { color: 'white', fontSize: 15, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  insightText: { color: '#8E8E93', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
-
-  quoteCard: { borderRadius: 20, padding: 20, marginTop: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
-  quoteText: { color: 'white', fontSize: 15, fontFamily: 'Inter_600SemiBold', fontStyle: 'italic', textAlign: 'center', lineHeight: 22 },
+  pieLegend: { flex: 1, marginLeft: 25, gap: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center' },
+  legendDot: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
+  legendText: { color: '#8E8E93', fontSize: 14, fontFamily: 'Inter_500Medium', flex: 1 },
+  legendValue: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  customPickerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, marginTop: 10 },
+  customPickerText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
+  customPickerChevron: { color: '#8E8E93', fontSize: 12 },
+  modalOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end', zIndex: 999 },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '70%', borderWidth: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: 'transparent' },
+  modalTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  closeBtnText: { color: '#8E8E93', fontSize: 16, lineHeight: 18 },
+  modalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, borderTopWidth: 1 },
+  modalItemActive: { backgroundColor: 'rgba(255, 59, 48, 0.1)' },
+  modalItemText: { fontSize: 16, fontFamily: 'Inter_500Medium' },
+  modalItemTextActive: { color: '#FF3B30', fontFamily: 'Inter_700Bold' },
+  modalItemCheck: { color: '#FF3B30', fontSize: 18, fontWeight: 'bold' },
 });

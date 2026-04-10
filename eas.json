@@ -1,35 +1,19 @@
 {
   "cli": {
-    "version": ">= 3.8.2"
+    "version": ">= 8.0.0"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "android": {
-        "backgroundModes": ["location"]
-      },
-      "ios": {
-        "backgroundModes": ["background-fetch", "background-processing"]
-      }
+      "distribution": "internal"
     },
     "preview": {
+      "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "backgroundModes": ["location"]
-      },
-      "ios": {
-        "backgroundModes": ["background-fetch", "background-processing"]
+        "buildType": "apk"
       }
     },
-    "production": {
-      "android": {
-        "backgroundModes": ["location"]
-      },
-      "ios": {
-        "backgroundModes": ["background-fetch", "background-processing"]
-      }
-    }
+    "production": {}
   },
   "submit": {
     "production": {}

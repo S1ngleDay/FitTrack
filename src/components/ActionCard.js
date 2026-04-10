@@ -9,7 +9,7 @@ export default function ActionCard({ title, subtitle, colorsGradient, iconColor 
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.touchable}>
       <LinearGradient
-        // Градиент идет слева направо (start -> end)
+        // Градиент идет слева направо
         // colorsGradient - это массив цветов, например ['#1a2e05', '#2b4a08']
         colors={colorsGradient} 
         start={{ x: 0, y: 0 }}
@@ -24,7 +24,6 @@ export default function ActionCard({ title, subtitle, colorsGradient, iconColor 
 
         {/* Правая часть: Кнопка Play */}
         <View style={[styles.iconCircle, { backgroundColor: iconColor }]}>
-           {/* fill='black' закрашивает треугольник внутри черным */}
           <Play size={20} color="black" fill="black" style={{ marginLeft: 2 }} />
         </View>
 

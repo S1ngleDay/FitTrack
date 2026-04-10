@@ -2,12 +2,14 @@
 import { useMemo } from 'react';
 import generateFullDayData from '../utils/chartUtils';
 import { useWorkoutStore } from '../store/workoutStore';
+import { useUserStore } from '../store/userStore';
 import { getMetricValue, isToday } from '../utils/statsCalculator';
 
-const GOAL_DISTANCE = 12.3;
+const DEFAULT_GOAL_DISTANCE = 5; // 5 км в день
 
 export function useDistanceStats() {
   const workouts = useWorkoutStore(s => s.workouts) || [];
+  const goalDistance = useUserStore(s => s.user?.goalDistance || DEFAULT_GOAL_DISTANCE);
 
   return useMemo(() => {
     const todayWorkouts = workouts.filter(w => isToday(w.date));
@@ -39,7 +41,7 @@ export function useDistanceStats() {
     const chartData = generateFullDayData(chartRaw);
 
     const avgPace = totalDist > 0 ? "5'30\"" : "-";
-    const progressPercent = Math.min((totalDist / GOAL_DISTANCE) * 100, 100);
+    const progressPercent = Math.min((totalDist / goalDistance) * 100, 100);
 
     return {
       totalDist,
@@ -47,7 +49,7 @@ export function useDistanceStats() {
       avgPace,
       chartData,
       progressPercent,
-      goalDistance: GOAL_DISTANCE,
+      goalDistance: goalDistance,
     };
-  }, [workouts]);
+  }, [workouts, goalDistance]);
 }
