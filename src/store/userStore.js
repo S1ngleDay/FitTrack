@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // 1. Выносим дефолтное состояние отдельно
 const initialState = {
   user: {
-    name: '', // Было 'Петр Иванов'
+    name: '',
     email: '',
     gender: 'male',
     weight: '',

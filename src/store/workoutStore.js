@@ -442,21 +442,6 @@ export const useWorkoutStore = create(
         return { workouts: [...newWorkouts, ...state.workouts] };
       }),
 
-      // 🎮 ДЕМО РЕЖИМ — функции для загрузки демо-данных
-      addMultipleWorkouts: (workouts) => set((state) => {
-        const normalizedWorkouts = workouts.map(normalizeWorkout);
-        // Избегаем дублирования: удаляем старые версии демо-тренировок перед добавлением новых
-        const demoIds = normalizedWorkouts.map(w => w.id);
-        const existingNonDemo = state.workouts.filter(w => !demoIds.includes(w.id));
-        // Сортируем новые первыми (по дате)
-        const sorted = [...normalizedWorkouts, ...existingNonDemo].sort((a, b) => {
-          const dateA = parseWorkoutDate(a.date || a.startTime);
-          const dateB = parseWorkoutDate(b.date || b.startTime);
-          return dateB.getTime() - dateA.getTime();
-        });
-        return { workouts: sorted };
-      }),
-
       setWorkoutPlans: (plans) => set({ workoutPlans: plans }),
 
     }),

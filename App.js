@@ -3,7 +3,6 @@ import { View, ActivityIndicator } from 'react-native';
 import { useEffect } from 'react';
 import { requestNotificationPermission, scheduleWorkoutReminder, cancelAllNotifications } from './src/utils/notifications';
 import { registerBackgroundTimer } from './src/utils/backgroundTimer';
-import { useDemoDataInit } from './src/hooks/useDemoDataInit';  // 🎮 Демо режим
 import { 
   useFonts, 
   Inter_400Regular, 
@@ -25,9 +24,6 @@ import { useUserStore } from './src/store/userStore';
 const Stack = createStackNavigator(); 
 
 export default function App() {
-  // 🎮 Инициализируем демо-данные если включен режим демо
-  useDemoDataInit();
-
   // 2. Загружаем шрифты
   let [fontsLoaded] = useFonts({
     Inter_400Regular,
